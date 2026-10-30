@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+  <title>TechStore | E-commerce de Microservicios</title>
+  <link rel="stylesheet" href="./css/styles.css" >
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-brand" onclick="showView('home')">🛒 TechStore</div>
+    <nav class="nav-links">
+      <a href="#" data-view="catalogo">Catálogo</a>
+      <a href="#" data-view="pedidos">Mis Pedidos</a>
+      <a href="#" data-view="perfil">Perfil</a>
+    </nav>
+    <div class="nav-actions">
+      <button id="btn-cart" class="btn-icon" title="Carrito">
+        🛍️ <span id="cart-count" class="badge">0</span>
+      </button>
+      <button id="btn-login" class="btn-primary">Ingresar</button>
+      <button id="btn-register" class="btn-secondary">Registrarse</button>
+      <button id="btn-logout" class="btn-secondary hidden">Salir</button>
+    </div>
+  </header>
+
+  <!-- ============ HOME ============ -->
+  <section id="view-home" class="view active">
+    <div class="hero">
+      <h1>Bienvenido a TechStore</h1>
+      <p>Plataforma de e-commerce basada en microservicios</p>
+      <button class="btn-primary btn-lg" onclick="showView('catalogo')">Ver Catálogo</button>
+    </div>
+
+    <h2 class="section-title">Arquitectura del Sistema</h2>
+    <div class="services-grid">
+      <div class="service-card"><div class="service-icon">👤</div><h3>ms-usuarios</h3><p>Autenticación JWT y gestión de usuarios</p></div>
+      <div class="service-card"><div class="service-icon">📦</div><h3>ms-productos</h3><p>Catálogo, stock y cotización del dólar</p></div>
+      <div class="service-card"><div class="service-icon">🧾</div><h3>ms-pedidos</h3><p>Órdenes con reducción de stock transaccional</p></div>
+      <div class="service-card"><div class="service-icon">👥</div><h3>ms-clientes</h3><p>Perfiles y direcciones con geocoding</p></div>
+      <div class="service-card highlight"><div class="service-icon">🚪</div><h3>api-gateway</h3><p>Punto único de entrada, auth y rate-limit</p></div>
+    </div>
+  </section>
+
+  <!-- ============ CATALOGO ============ -->
+  <section id="view-catalogo" class="view">
+    <div class="view-header">
+      <h2>Catálogo de Productos</h2>
+      <span id="cotizacion-info" class="cotizacion hidden"></span>
+    </div>
+    <div class="filters">
+      <input type="text" id="search-input" placeholder="🔍 Buscar producto..." >
+      <select id="category-select">
+        <option value="">Todas las categorías</option>
+        <option value="laptops">Laptops</option>
+        <option value="audio">Audio</option>
+        <option value="accesorios">Accesorios</option>
+        <option value="monitores">Monitores</option>
+      </select>
+    </div>
+    <div id="products-grid" class="products-grid"></div>
+  </section>
+
+  <!-- ============ CARRITO ============ -->
+  <section id="view-carrito" class="view">
+    <h2>Carrito de Compras</h2>
+    <div id="cart-items" class="cart-items"></div>
+    <div id="cart-footer" class="cart-footer hidden">
+      <span>Total: <strong>$<span id="cart-total">0.00</span></strong></span>
+      <button class="btn-primary" onclick="showView('checkout')">Finalizar Compra →</button>
+    </div>
+  </section>
+
+  <!-- ============ CHECKOUT ============ -->
+  <section id="view-checkout" class="view">
+    <h2>Checkout</h2>
+    <form id="checkout-form" class="form">
+      <label>Dirección de entrega
+        <input type="text" id="direccion" required placeholder="Av. Siempre Viva 123, Buenos Aires" >
+      </label>
+      <label>Método de pago (referencia)
+        <select id="metodo-pago">
+          <option value="tarjeta">💳 Tarjeta de crédito</option>
+          <option value="transferencia">🏦 Transferencia</option>
+          <option value="efectivo">💵 Efectivo</option>
+        </select>
+      </label>
+      <div class="checkout-summary">
+        <span>Total a pagar:</span>
+        <strong>$<span id="checkout-total">0.00</span></strong>
+      </div>
+      <button type="submit" class="btn-primary btn-lg">Confirmar Pedido ✅</button>
+    </form>
+  </section>
+
+  <!-- ============ PEDIDOS ============ -->
+  <section id="view-pedidos" class="view">
+    <h2>Mis Pedidos</h2>
+    <div id="orders-list" class="orders-list"></div>
+  </section>
+
+  <!-- ============ PERFIL ============ -->
+  <section id="view-perfil" class="view">
+    <h2>Mi Perfil</h2>
+    <div class="profile-card">
+      <div class="profile-header">
+        <div class="avatar">👤</div>
+        <div>
+          <h3 id="profile-nombre">Invitado</h3>
+          <p id="profile-email">Sin sesión iniciada</p>
+        </div>
+      </div>
+      <div class="profile-info">
+        <p><strong>Rol:</strong> <span id="profile-rol">—</span></p>
+        <p><strong>DNI:</strong> <span id="profile-dni">—</span></p>
+        <p><strong>Teléfono:</strong> <span id="profile-telefono">—</span></p>
+        <p><strong>Direcciones:</strong></p>
+        <ul id="profile-direcciones"><li>—</li></ul>
+      </div>
+      <div id="cliente-form-container" class="hidden">
+        <hr class="divider" >
+        <h4 class="form-title">Completá tu perfil de cliente</h4>
+        <form id="cliente-form" class="form">
+          <label>Nombre <input type="text" id="cl-nombre" required ></label>
+          <label>Apellido <input type="text" id="cl-apellido" required ></label>
+          <label>DNI <input type="text" id="cl-dni" required ></label>
+          <label>Teléfono <input type="text" id="cl-telefono" ></label>
+          <button type="submit" class="btn-primary">Guardar perfil</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOGIN MODAL ============ -->
+  <div id="modal-login" class="modal hidden">
+    <div class="modal-content">
+      <h3>Iniciar Sesión</h3>
+      <form id="login-form" class="form">
+        <label>Email <input type="email" id="login-email" required placeholder="demo@techstore.com" ></label>
+        <label>Contraseña <input type="password" id="login-password" required placeholder="••••••••"></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-login')">Cancelar</button>
+          <button type="submit" class="btn-primary">Ingresar</button>
+        </div>
+        <small class="hint" id="login-hint">Usá una cuenta registrada en ms-usuarios</small>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ REGISTER MODAL ============ -->
+  <div id="modal-register" class="modal hidden">
+    <div class="modal-content">
+      <h3>Crear Cuenta</h3>
+      <form id="register-form" class="form">
+        <label>Nombre <input type="text" id="reg-nombre" required ></label>
+        <label>Email <input type="email" id="reg-email" required ></label>
+        <label>Contraseña (mín. 6) <input type="password" id="reg-password" required minlength="6" ></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeModal('modal-register')">Cancelar</button>
+          <button type="submit" class="btn-primary">Registrarme</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
