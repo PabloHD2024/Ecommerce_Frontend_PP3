@@ -140,7 +140,7 @@ const MOCK_PRODUCTS = [
   { id: 6, nombre: "Teclado Mecánico", descripcion: "Switches red · Layout TKL", precio: 119.00, stock: 15, categoria: "accesorios" },
   { id: 7, nombre: 'Monitor 27" 4K', descripcion: "IPS · 144Hz · HDR10", precio: 449.00, stock: 5, categoria: "monitores" },
   { id: 8, nombre: 'Monitor UltraWide 34"', descripcion: "Curvo · 165Hz · USB-C", precio: 699.00, stock: 3, categoria: "monitores" },
-  { id: 9, nombre: "Webcam Full HD", descripcion: "1080p · micrófono integrado", precio: 79.99, stock: 0, categoria: "accesorios" },
+  { id: 9, nombre: "Webcam Full HD", descripcion: "1080p · micrófono integrado", precio: 79.99, stock: 10, categoria: "accesorios" },
 ];
 
 const EMOJIS = { laptops: "💻", audio: "🎧", accesorios: "🖱️", monitores: "🖥️", default: "📦" };

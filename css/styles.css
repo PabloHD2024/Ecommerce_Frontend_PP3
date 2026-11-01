@@ -76,7 +76,7 @@ h2 { margin-bottom: 1.5rem; font-size: 1.5rem; }
 }
 .hero h1 { font-size: 2.4rem; margin-bottom: .5rem; }
 .hero p { opacity: .95; margin-bottom: 1.5rem; font-size: 1.1rem; }
-.hero .btn-primary { background: white; color: var(--primary); }
+.hero .btn-primary { background: white; color: var(--primary); margin-top: 15px; }
 .hero .btn-primary:hover { background: #f1f5f9; }
 
 /* SERVICES */

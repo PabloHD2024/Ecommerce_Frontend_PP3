@@ -1,44 +1,44 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" >
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TechStore | E-commerce de Microservicios</title>
-  <link rel="stylesheet" href="./css/styles.css" >
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 </head>
 <body>
   <header class="navbar">
-    <div class="nav-brand" onclick="showView('home')">🛒 TechStore</div>
+    <div class="nav-brand" onclick="showView('home')">Ecommerce-PP3</div>
     <nav class="nav-links">
       <a href="#" data-view="catalogo">Catálogo</a>
       <a href="#" data-view="pedidos">Mis Pedidos</a>
       <a href="#" data-view="perfil">Perfil</a>
     </nav>
     <div class="nav-actions">
-      <button id="btn-cart" class="btn-icon" title="Carrito">
-        🛍️ <span id="cart-count" class="badge">0</span>
+      <button type="button" id="btn-cart" class="btn-icon" title="Carrito">
+        <i class="fas fa-cart-shopping"></i> <span id="cart-count" class="badge">0</span>
       </button>
-      <button id="btn-login" class="btn-primary">Ingresar</button>
-      <button id="btn-register" class="btn-secondary">Registrarse</button>
-      <button id="btn-logout" class="btn-secondary hidden">Salir</button>
+      <button type="button" id="btn-login" class="btn-primary">Ingresar</button>
+      <button type="button" id="btn-register" class="btn-secondary">Registrarse</button>
+      <button type="button" id="btn-logout" class="btn-secondary hidden">Salir</button>
     </div>
   </header>
 
   <!-- ============ HOME ============ -->
   <section id="view-home" class="view active">
     <div class="hero">
-      <h1>Bienvenido a TechStore</h1>
-      <p>Plataforma de e-commerce basada en microservicios</p>
-      <button class="btn-primary btn-lg" onclick="showView('catalogo')">Ver Catálogo</button>
+      <h1>Bienvenido a Ecommerce-PP3</h1>
+      <button type="button" class="btn-primary btn-lg" onclick="showView('catalogo')">Ver Catálogo</button>
     </div>
 
     <h2 class="section-title">Arquitectura del Sistema</h2>
     <div class="services-grid">
-      <div class="service-card"><div class="service-icon">👤</div><h3>ms-usuarios</h3><p>Autenticación JWT y gestión de usuarios</p></div>
-      <div class="service-card"><div class="service-icon">📦</div><h3>ms-productos</h3><p>Catálogo, stock y cotización del dólar</p></div>
-      <div class="service-card"><div class="service-icon">🧾</div><h3>ms-pedidos</h3><p>Órdenes con reducción de stock transaccional</p></div>
-      <div class="service-card"><div class="service-icon">👥</div><h3>ms-clientes</h3><p>Perfiles y direcciones con geocoding</p></div>
-      <div class="service-card highlight"><div class="service-icon">🚪</div><h3>api-gateway</h3><p>Punto único de entrada, auth y rate-limit</p></div>
+      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-user"></i></div><h3>ms-usuarios</h3><p>Autenticación JWT y gestión de usuarios</p></div>
+      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-box-open"></i></div><h3>ms-productos</h3><p>Catálogo, stock y cotización del dólar</p></div>
+      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-table-list"></i></div><h3>ms-pedidos</h3><p>Órdenes con reducción de stock transaccional</p></div>
+      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-user-group"></i></div><h3>ms-clientes</h3><p>Perfiles y direcciones con geocoding</p></div>
+      <div class="service-card highlight"><div class="service-icon"><i class="fa-solid fa-door-open"></i></div><h3>api-gateway</h3><p>Punto único de entrada, auth y rate-limit</p></div>
     </div>
   </section>
 
@@ -67,7 +67,7 @@
     <div id="cart-items" class="cart-items"></div>
     <div id="cart-footer" class="cart-footer hidden">
       <span>Total: <strong>$<span id="cart-total">0.00</span></strong></span>
-      <button class="btn-primary" onclick="showView('checkout')">Finalizar Compra →</button>
+      <button type="button" class="btn-primary" onclick="showView('checkout')">Finalizar Compra →</button>
     </div>
   </section>
 
@@ -80,9 +80,9 @@
       </label>
       <label>Método de pago (referencia)
         <select id="metodo-pago">
-          <option value="tarjeta">💳 Tarjeta de crédito</option>
-          <option value="transferencia">🏦 Transferencia</option>
-          <option value="efectivo">💵 Efectivo</option>
+          <option value="tarjeta"> Tarjeta de crédito</option>
+          <option value="transferencia"> Transferencia</option>
+          <option value="efectivo"> Efectivo</option>
         </select>
       </label>
       <div class="checkout-summary">
@@ -137,7 +137,7 @@
       <h3>Iniciar Sesión</h3>
       <form id="login-form" class="form">
         <label>Email <input type="email" id="login-email" required placeholder="demo@techstore.com" ></label>
-        <label>Contraseña <input type="password" id="login-password" required placeholder="••••••••"></label>
+        <label>Contraseña <input autocomplete="current-password" type="password" id="login-password" required placeholder="••••••••"></label>
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-login')">Cancelar</button>
           <button type="submit" class="btn-primary">Ingresar</button>
@@ -154,7 +154,7 @@
       <form id="register-form" class="form">
         <label>Nombre <input type="text" id="reg-nombre" required ></label>
         <label>Email <input type="email" id="reg-email" required ></label>
-        <label>Contraseña (mín. 6) <input type="password" id="reg-password" required minlength="6" ></label>
+        <label>Contraseña (mín. 6) <input autocomplete="new-password" type="password" id="reg-password" required minlength="6" ></label>
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-register')">Cancelar</button>
           <button type="submit" class="btn-primary">Registrarme</button>
