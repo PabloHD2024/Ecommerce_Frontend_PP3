@@ -80,7 +80,10 @@ h2 { margin-bottom: 1.5rem; font-size: 1.5rem; }
 .hero .btn-primary:hover { background: #f1f5f9; }
 
 /* SERVICES */
-.services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+.services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; text-align: center; margin-top: 15px;}
+
+.services-grid-head { display: grid; grid-template-columns: repeat(auto fit, minmax(200px, 1fr)); gap: 1rem; text-align: center; ; margin: 0 auto;}
+
 .service-card {
   background: var(--card); padding: 1.5rem; border-radius: var(--radius);
   box-shadow: var(--shadow); border-left: 4px solid var(--primary);
