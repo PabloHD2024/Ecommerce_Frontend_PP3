@@ -4,7 +4,7 @@
    Si el backend no responde → fallback automático a mocks
    ========================================================= */
 
-const API_BASE = "http://localhost:3000"; 
+const API_BASE = "https://pp3-ecommerce-api-gateway.onrender.com"; 
 const TOKEN_KEY = "techstore_token";
 
 /* ---------- ESTADO ---------- */
