@@ -192,7 +192,7 @@ function renderProducts(list) {
       : "";
     return `
     <div class="product-card">
-      <div class="product-img">${emojiFor(p)}</div>
+      <div class="product-img"><img src="${p.image}" alt="${p.nombre}>"</div>
       <div class="product-body">
         <h4>${p.nombre}</h4>
         <p class="desc">${p.descripcion || ""}</p>
