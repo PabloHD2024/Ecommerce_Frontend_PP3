@@ -101,7 +101,7 @@ $("#register-form").addEventListener("submit", async (e) => {
   try {
     await api("/api/usuarios/auth/register", {
       method: "POST",
-      body: JSON.stringify({ nombre, email, password }),
+      body: JSON.stringify({ nombre, apellido, email, password }),
     });
     toast("Cuenta creada. Ahora iniciá sesión.");
     closeModal("modal-register");
