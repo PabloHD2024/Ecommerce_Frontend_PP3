@@ -95,6 +95,7 @@ $("#login-form").addEventListener("submit", async (e) => {
 $("#register-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const nombre = $("#reg-nombre").value.trim();
+  const apellido = $("#reg-apellido").value.trim();
   const email = $("#reg-email").value.trim();
   const password = $("#reg-password").value;
   try {
