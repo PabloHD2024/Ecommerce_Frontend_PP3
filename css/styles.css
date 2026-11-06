@@ -224,7 +224,7 @@ h2 { margin-bottom: 1.5rem; font-size: 1.5rem; }
 .destacados-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 3rem; }
 .destacados-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; transition: transform .2s, box-shadow .2s; }
 .destacados-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
-.destacados-img-wrap { width: 100%; height: 250px; background: var(--card); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.destacados-img-wrap { width: 100%; height: 260px; background: var(--card); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .destacados-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .destacados-img-wrap .no-img { font-size: 3rem; }
 .destacados-body { padding: 1rem 1.15rem 1.25rem; display: flex; flex-direction: column; gap: .5rem; flex: 1; }
