@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="navbar">
-    <div class="nav-brand" onclick="showView('home')">Ecommerce-PP3</div>
+    <div class="nav-brand" onclick="showView('home')">TechStore</div>
     <nav class="nav-links">
       <a href="#" data-view="catalogo">Catálogo</a>
       <a href="#" data-view="pedidos">Mis Pedidos</a>
@@ -28,18 +28,13 @@
   <!-- ============ HOME ============ -->
   <section id="view-home" class="view active">
     <div class="hero">
-      <h1>Bienvenido a Ecommerce-PP3</h1>
+      <h1>Bienvenido a TechStore</h1>
+      <h2>Aqui podrás encontrar lo mejor en tecnología</h2>
       <button type="button" class="btn-primary btn-lg" onclick="showView('catalogo')">Ver Catálogo</button>
     </div>
-
-    <h2 class="section-title">Arquitectura del Sistema</h2>
-    <div class="services-grid-head">
-      <div class="service-card highlight"><div class="service-icon"><i class="fa-solid fa-door-open"></i></div><h3>api-gateway</h3><p>Punto único de entrada y auth</p></div>
-    </div>
-    <div class="services-grid">
-      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-user"></i></div><h3>ms-usuarios</h3><p>Autenticación JWT y gestión de usuarios</p></div>
-      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-box-open"></i></div><h3>ms-productos</h3><p>Catálogo y stock</p></div>
-      <div class="service-card"><div class="service-icon"><i class="fa-solid fa-table-list"></i></div><h3>ms-pedidos</h3><p>Órdenes con reducción de stock transaccional</p></div>
+    <h2 class="section-title">Productos destacados</h2>
+    <div id="destacados-grid" class="destacados-grid">
+      <p class="empty-msg">Cargando productos destacados...</p>
     </div>
   </section>
 
@@ -50,7 +45,7 @@
       <span id="cotizacion-info" class="cotizacion hidden"></span>
     </div>
     <div class="filters">
-      <input type="text" id="search-input" placeholder="🔍 Buscar producto..." >
+      <input type="text" id="search-input" placeholder="Buscar producto..." >
       <select id="category-select">
         <option value="">Todas las categorías</option>
         <option value="laptops">Laptops</option>
@@ -164,6 +159,58 @@
       </form>
     </div>
   </div>
+
+    <!-- ============ FOOTER ============ -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-col">
+        <h4 class="footer-brand">TechStore</h4>
+        <p class="footer-desc">
+          E-commerce de tecnología construido sobre una arquitectura de microservicios con API Gateway.
+        </p>
+        <div class="footer-social">
+          <a href="#" title="Facebook" aria-label="Facebook"></a>
+          <a href="#" title="Instagram" aria-label="Instagram"></a>
+          <a href="#" title="Twitter / X" aria-label="Twitter"></a>
+          <a href="#" title="GitHub" aria-label="GitHub"></a>
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h4>Tienda</h4>
+        <ul>
+          <li><a href="#" data-view="catalogo">Catálogo</a></li>
+          <li><a href="#" data-view="pedidos">Mis Pedidos</a></li>
+          <li><a href="#" data-view="perfil">Mi Perfil</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Ayuda</h4>
+        <ul>
+          <li><a href="#">Envíos</a></li>
+          <li><a href="#">Devoluciones</a></li>
+          <li><a href="#">Preguntas frecuentes</a></li>
+          <li><a href="#">Contacto</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Contacto</h4>
+        <ul class="footer-contact">
+          <li>Av. Siempre Viva 742</li>
+          <li>(011) 1234-5678</li>
+          <li>hola@techstore.com</li>
+          <li>Lun a Vie 9–18h</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>© <span id="footer-year"></span> TechStore · PP3 IFTS N°16 · Grupo 1</p>
+      <p class="footer-tech">Hecho con microservicios en la nube</p>
+    </div>
+  </footer>
 
   <!-- ============ TOAST ============ -->
   <div id="toast" class="toast hidden"></div>

@@ -177,12 +177,87 @@ async function loadProducts() {
   renderProducts(state.products);
 }
 
+/* =========================================================
+   PRODUCTOS DESTACADOS — se cargan desde GET /api/productos
+   Toma los primeros 4 productos activos de la base.
+   ========================================================= */
+
+async function loadDestacados() {
+  const grid = document.getElementById("destacados-grid");
+  if (!grid) return;
+
+  grid.innerHTML = `<p class="empty-msg">Cargando productos destacados...</p>`;
+
+  let productos = [];
+  try {
+    const data = await api("/api/productos");
+    productos = (data.productos || []).slice(0, 4); // primeros 4
+  } catch (err) {
+    console.warn("No se pudieron cargar destacados:", err.message);
+    // Fallback: usamos los mismos mocks del catálogo si existen
+    if (typeof MOCK_PRODUCTS !== "undefined") {
+      productos = MOCK_PRODUCTS.slice(0, 4);
+    }
+  }
+
+  if (!productos.length) {
+    grid.innerHTML = `<p class="empty-msg">No hay productos destacados para mostrar.</p>`;
+    return;
+  }
+
+  grid.innerHTML = productos.map((p) => {
+    // La columna de imagen puede llamarse distinto según el schema
+    const imgUrl =
+      p.imagen || p.imagen_url || p.foto || p.image || p.imagenUrl || null;
+
+    // Precio: el backend lo manda como número o string
+    const precio = Number(p.precio);
+    const precioFmt = isNaN(precio) ? "—" : precio.toFixed(2);
+
+    const imgHtml = imgUrl
+      ? `<img src="${imgUrl}" alt="${escapeHtml(p.nombre || "Producto")}" 
+              onerror="this.parentElement.innerHTML='<span class=\\'no-img\\'>📦</span>'">`
+      : `<span class="no-img">📦</span>`;
+
+    return `
+      <div class="destacados-card">
+        <div class="destacados-img-wrap">${imgHtml}</div>
+        <div class="destacados-body">
+          <h3 class="card-title">${escapeHtml(p.nombre || "Sin nombre")}</h3>
+          <p class="descripcion-producto">${escapeHtml(p.descripcion || "Sin descripción disponible.")}</p>
+          <span class="precio">$${precioFmt}</span>
+          <button class="btn-primary" onclick="addToCart(${p.id})">Agregar al carrito</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// Helper para evitar inyección de HTML en nombres/descripciones
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/* ---------- INIT ---------- */
+// Cargar destacados al iniciar (aunque no estemos en la vista home,
+// el HTML ya está en el DOM y se llena igual)
+loadDestacados();
+
+// Año dinámico en el footer
+const footerYear = document.getElementById("footer-year");
+if (footerYear) footerYear.textContent = new Date().getFullYear();
+
 function renderProducts(list) {
   const grid = $("#products-grid");
   if (!list.length) {
     grid.innerHTML = `<p class="empty-msg">No se encontraron productos.</p>`;
     return;
   }
+  
   grid.innerHTML = list.map((p) => {
     const sinStock = p.stock <= 0;
     const stockClass = sinStock ? "out" : p.stock <= 5 ? "low" : "";
@@ -190,9 +265,16 @@ function renderProducts(list) {
     const usd = p.precioUSD
       ? `<span class="price-usd">≈ USD ${Number(p.precioUSD).toFixed(2)}</span>`
       : "";
+
+    // Manejo seguro de la imagen: si no viene en la DB, mostramos un emoji
+    const imgSrc = p.image || p.imagen || p.foto;
+    const imgHtml = imgSrc 
+      ? `<img src="${imgSrc}" alt="${p.nombre}" style="width: 100%; height: 100%; object-fit: contain;">` 
+      : "📦"; // Emoji por defecto si el producto no tiene foto
+
     return `
     <div class="product-card">
-      <div class="product-img"><img src="${p.image}" alt="${p.nombre}>"</div>
+      <div class="product-img">${imgHtml}</div>
       <div class="product-body">
         <h4>${p.nombre}</h4>
         <p class="desc">${p.descripcion || ""}</p>
