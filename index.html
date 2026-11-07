@@ -29,8 +29,8 @@
   <section id="view-home" class="view active">
     <div class="hero">
       <h1>Bienvenido a TechStore</h1>
-      <h2>Aqui podrás encontrar lo mejor en tecnología</h2>
-      <button type="button" class="btn-primary btn-lg" onclick="showView('catalogo')">Ver Catálogo</button>
+      <p>El lugar para encontrar los mejores productos tecnológicos del mercado</p>
+      <button class="btn-primary btn-lg" onclick="showView('catalogo')" type="button">Ver Catálogo</button>
     </div>
     <h2 class="section-title">Productos destacados</h2>
     <div id="destacados-grid" class="destacados-grid">
@@ -46,12 +46,8 @@
     </div>
     <div class="filters">
       <input type="text" id="search-input" placeholder="Buscar producto..." >
-      <select id="category-select">
+            <select id="category-select">
         <option value="">Todas las categorías</option>
-        <option value="laptops">Laptops</option>
-        <option value="audio">Audio</option>
-        <option value="accesorios">Accesorios</option>
-        <option value="monitores">Monitores</option>
       </select>
     </div>
     <div id="products-grid" class="products-grid"></div>

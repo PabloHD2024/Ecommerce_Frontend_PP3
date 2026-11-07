@@ -147,11 +147,51 @@ const MOCK_PRODUCTS = [
 const EMOJIS = { laptops: "💻", audio: "🎧", accesorios: "🖱️", monitores: "🖥️", default: "📦" };
 function emojiFor(p) { return EMOJIS[p.categoria] || EMOJIS.default; }
 
+// async function loadProducts() {
+//   const grid = $("#products-grid");
+//   grid.innerHTML = `<p class="empty-msg">Cargando productos...</p>`;
+//   try {
+//     const data = await api("/api/productos");
+//     state.cotizacion = data.cotizacion || null;
+//     state.products = (data.productos || []).map((p) => ({
+//       ...p,
+//       precio: Number(p.precio),
+//       stock: Number(p.stock),
+//     }));
+//     state.usandoMocks = false;
+//   } catch (err) {
+//     console.warn("Backend no disponible, usando mocks:", err.message);
+//     state.products = MOCK_PRODUCTS;
+//     state.cotizacion = { compra: 950, venta: 1000, moneda: "ARS" };
+//     state.usandoMocks = true;
+//   }
+
+//   const cot = $("#cotizacion-info");
+//   if (state.cotizacion) {
+//     cot.textContent = `💵 Dólar ${state.cotizacion.moneda || "ARS"}: compra $${state.cotizacion.compra} · venta $${state.cotizacion.venta}`;
+//     cot.classList.remove("hidden");
+//   } else {
+//     cot.classList.add("hidden");
+//   }
+
+//   renderProducts(state.products);
+// }
+
 async function loadProducts() {
   const grid = $("#products-grid");
   grid.innerHTML = `<p class="empty-msg">Cargando productos...</p>`;
+  
+  // Obtenemos los valores actuales de los filtros
+  const q = $("#search-input").value.trim();
+  const cat = $("#category-select").value;
+
+  // Construimos la query string
+  const params = new URLSearchParams();
+  if (cat) params.append("categoria", cat);
+  if (q) params.append("nombre", q); // Según el doc, el parámetro es 'nombre'
+
   try {
-    const data = await api("/api/productos");
+    const data = await api(`/api/productos?${params.toString()}`);
     state.cotizacion = data.cotizacion || null;
     state.products = (data.productos || []).map((p) => ({
       ...p,
@@ -161,7 +201,12 @@ async function loadProducts() {
     state.usandoMocks = false;
   } catch (err) {
     console.warn("Backend no disponible, usando mocks:", err.message);
-    state.products = MOCK_PRODUCTS;
+    // Si el backend falla, usamos los mocks y filtramos localmente como fallback
+    let mocks = [...MOCK_PRODUCTS];
+    if (cat) mocks = mocks.filter(m => m.categoria === cat);
+    if (q) mocks = mocks.filter(m => m.nombre.toLowerCase().includes(q.toLowerCase()));
+    
+    state.products = mocks;
     state.cotizacion = { compra: 950, venta: 1000, moneda: "ARS" };
     state.usandoMocks = true;
   }
@@ -175,6 +220,37 @@ async function loadProducts() {
   }
 
   renderProducts(state.products);
+}
+
+// Agregar categorias dinamicamente desde el back
+
+async function loadCategories() {
+  const select = $("#category-select");
+  if (!select) return;
+
+  try {
+    // El documento pide GET /api/categorias
+    const categorias = await api("/api/categorias");
+    
+    // Asumimos que el backend devuelve un array de strings o de objetos { nombre, ... }
+    categorias.forEach(cat => {
+      const valor = typeof cat === 'string' ? cat : cat.nombre || cat.categoria;
+      const option = document.createElement("option");
+      option.value = valor;
+      option.textContent = valor;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.warn("No se pudieron cargar las categorías dinámicas:", err.message);
+    // Fallback: cargamos las categorías de los mocks si el backend falla
+    const catsFallback = [...new Set(MOCK_PRODUCTS.map(p => p.categoria))];
+    catsFallback.forEach(cat => {
+      const option = document.createElement("option");
+      option.value = cat;
+      option.textContent = cat;
+      select.appendChild(option);
+    });
+  }
 }
 
 /* =========================================================
@@ -289,22 +365,36 @@ function renderProducts(list) {
   }).join("");
 }
 
+// $("#search-input").addEventListener("input", () => {
+//   const q = $("#search-input").value.toLowerCase();
+//   const cat = $("#category-select").value;
+//   applyFilters(q, cat);
+// });
+// $("#category-select").addEventListener("change", () => {
+//   const q = $("#search-input").value.toLowerCase();
+//   applyFilters(q, $("#category-select").value);
+// });
+
+// function applyFilters(query, category) {
+//   let list = [...state.products];
+//   if (query) list = list.filter((p) => p.nombre.toLowerCase().includes(query));
+//   if (category) list = list.filter((p) => p.categoria === category);
+//   renderProducts(list);
+// }
+
+// Búsqueda (con un pequeño delay para no saturar el backend)
+let searchTimeout;
 $("#search-input").addEventListener("input", () => {
-  const q = $("#search-input").value.toLowerCase();
-  const cat = $("#category-select").value;
-  applyFilters(q, cat);
-});
-$("#category-select").addEventListener("change", () => {
-  const q = $("#search-input").value.toLowerCase();
-  applyFilters(q, $("#category-select").value);
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    loadProducts();
+  }, 400); // Espera 400ms después de que el usuario deja de tipear
 });
 
-function applyFilters(query, category) {
-  let list = [...state.products];
-  if (query) list = list.filter((p) => p.nombre.toLowerCase().includes(query));
-  if (category) list = list.filter((p) => p.categoria === category);
-  renderProducts(list);
-}
+// Cambio de categoría
+$("#category-select").addEventListener("change", () => {
+  loadProducts();
+});
 
 /* ---------- CARRITO ---------- */
 function addToCart(id) {
@@ -549,10 +639,31 @@ $("#cliente-form").addEventListener("submit", async (e) => {
   }
 });
 
+
 /* ---------- INIT ---------- */
-updateAuthUI();
-updateCartCount();
-// Si hay token guardado, cargamos el catálogo al inicio
-if (state.token) {
-  // Podríamos pedir /auth/perfil, pero no es crítico para la demo
+async function init() {
+  updateCartCount();
+  loadCategories();
+  loadDestacados();
+
+  // Persistencia de sesión
+  if (state.token) {
+    try {
+      // El documento pide GET /api/usuarios/me
+      // NOTA: Si tu backend actual usa /api/usuarios/auth/perfil, cambialo acá.
+      const usuario = await api("/api/usuarios/me"); 
+      state.user = usuario;
+      updateAuthUI();
+    } catch (err) {
+      console.warn("Token vencido o inválido, limpiando sesión.");
+      state.token = null;
+      state.user = null;
+      localStorage.removeItem(TOKEN_KEY);
+      updateAuthUI();
+    }
+  } else {
+    updateAuthUI();
+  }
 }
+
+init();
