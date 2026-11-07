@@ -1,7 +1,6 @@
 /* =========================================================
    TechStore — Frontend conectado al API Gateway real
-   Gateway: http://localhost:3000
-   Si el backend no responde → fallback automático a mocks
+   Gateway: https://pp3-ecommerce-api-gateway.onrender.com
    ========================================================= */
 
 const API_BASE = "https://pp3-ecommerce-api-gateway.onrender.com"; 
@@ -26,6 +25,7 @@ const $$ = (s) => document.querySelectorAll(s);
 
 function toast(msg, type = "success") {
   const t = $("#toast");
+  if(!t) return;
   t.textContent = msg;
   t.className = `toast ${type}`;
   clearTimeout(t._timer);
@@ -39,7 +39,7 @@ async function api(path, options = {}) {
   try {
     res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   } catch (networkErr) {
-    throw new Error("No se pudo conectar al servidor. ¿Está levantado el gateway?");
+    throw new Error("No se pudo conectar al servidor.");
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
@@ -72,27 +72,6 @@ $("#btn-register").addEventListener("click", () => $("#modal-register").classLis
 function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
 window.closeModal = closeModal;
 
-// $("#login-form").addEventListener("submit", async (e) => {
-//   e.preventDefault();
-//   const email = $("#login-email").value.trim();
-//   const password = $("#login-password").value;
-//   try {
-//     const data = await api("/api/sesiones", {
-//       method: "POST",
-//       body: JSON.stringify({ email, password }),
-//     });
-//     state.token = data.token;
-//     state.user = data.usuario;
-//     localStorage.setItem(TOKEN_KEY, data.token);
-//     closeModal("modal-login");
-//     updateAuthUI();
-//     toast(`¡Bienvenido, ${state.user.nombre}!`);
-//     showView("perfil");
-//   } catch (err) {
-//     toast(err.message, "error");
-//   }
-// });
-
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("#login-email").value.trim();
@@ -119,13 +98,15 @@ $("#login-form").addEventListener("submit", async (e) => {
 $("#register-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const nombre = $("#reg-nombre").value.trim();
+  const apellido = $("#reg-apellido") ? $("#reg-apellido").value.trim() : "";
   const email = $("#reg-email").value.trim();
   const password = $("#reg-password").value;
   
   try {
+    // Enviamos nombre y apellido. Si el back no acepta apellido, lo ignorará.
     await api("/api/usuarios", {
       method: "POST",
-      body: JSON.stringify({ nombre, email, password }),
+      body: JSON.stringify({ nombre, apellido, email, password }),
     });
     toast("Cuenta creada. Ahora iniciá sesión.");
     closeModal("modal-register");
@@ -141,7 +122,9 @@ $("#btn-logout").addEventListener("click", () => {
   state.user = null;
   state.perfilCliente = null;
   state.orders = [];
+  state.cart = []; // Vaciamos el carrito para el próximo usuario
   localStorage.removeItem(TOKEN_KEY);
+  updateCartCount();
   updateAuthUI();
   toast("Sesión cerrada", "info");
   showView("home");
@@ -156,62 +139,23 @@ function updateAuthUI() {
 
 /* ---------- PRODUCTOS ---------- */
 const MOCK_PRODUCTS = [
-  { id: 1, nombre: "Notebook Pro 14", descripcion: "Intel i7 · 16GB RAM · 512GB SSD", precio: 1299.99, stock: 8, categoria: "laptops" },
-  { id: 2, nombre: "Notebook Ultra 13", descripcion: "Ryzen 5 · 8GB RAM · 256GB SSD", precio: 899.00, stock: 12, categoria: "laptops" },
-  { id: 3, nombre: "Auriculares BT Pro", descripcion: "Cancelación activa de ruido", precio: 199.50, stock: 25, categoria: "audio" },
-  { id: 4, nombre: "Parlante Bluetooth", descripcion: "Portátil · 20W · resistente al agua", precio: 89.99, stock: 30, categoria: "audio" },
-  { id: 5, nombre: "Mouse Gamer RGB", descripcion: "16000 DPI · 8 botones programables", precio: 59.90, stock: 50, categoria: "accesorios" },
-  { id: 6, nombre: "Teclado Mecánico", descripcion: "Switches red · Layout TKL", precio: 119.00, stock: 15, categoria: "accesorios" },
-  { id: 7, nombre: 'Monitor 27" 4K', descripcion: "IPS · 144Hz · HDR10", precio: 449.00, stock: 5, categoria: "monitores" },
-  { id: 8, nombre: 'Monitor UltraWide 34"', descripcion: "Curvo · 165Hz · USB-C", precio: 699.00, stock: 3, categoria: "monitores" },
-  { id: 9, nombre: "Webcam Full HD", descripcion: "1080p · micrófono integrado", precio: 79.99, stock: 10, categoria: "accesorios" },
+  { id: 1, nombre: "Notebook Pro 14", descripcion: "Intel i7 · 16GB RAM", precio: 1299.99, stock: 8, categoria: "laptops" },
+  { id: 2, nombre: "Auriculares BT Pro", descripcion: "Cancelación de ruido", precio: 199.50, stock: 25, categoria: "audio" },
 ];
 
 const EMOJIS = { laptops: "💻", audio: "🎧", accesorios: "🖱️", monitores: "🖥️", default: "📦" };
 function emojiFor(p) { return EMOJIS[p.categoria] || EMOJIS.default; }
 
-// async function loadProducts() {
-//   const grid = $("#products-grid");
-//   grid.innerHTML = `<p class="empty-msg">Cargando productos...</p>`;
-//   try {
-//     const data = await api("/api/productos");
-//     state.cotizacion = data.cotizacion || null;
-//     state.products = (data.productos || []).map((p) => ({
-//       ...p,
-//       precio: Number(p.precio),
-//       stock: Number(p.stock),
-//     }));
-//     state.usandoMocks = false;
-//   } catch (err) {
-//     console.warn("Backend no disponible, usando mocks:", err.message);
-//     state.products = MOCK_PRODUCTS;
-//     state.cotizacion = { compra: 950, venta: 1000, moneda: "ARS" };
-//     state.usandoMocks = true;
-//   }
-
-//   const cot = $("#cotizacion-info");
-//   if (state.cotizacion) {
-//     cot.textContent = `💵 Dólar ${state.cotizacion.moneda || "ARS"}: compra $${state.cotizacion.compra} · venta $${state.cotizacion.venta}`;
-//     cot.classList.remove("hidden");
-//   } else {
-//     cot.classList.add("hidden");
-//   }
-
-//   renderProducts(state.products);
-// }
-
 async function loadProducts() {
   const grid = $("#products-grid");
   grid.innerHTML = `<p class="empty-msg">Cargando productos...</p>`;
   
-  // Obtenemos los valores actuales de los filtros
   const q = $("#search-input").value.trim();
   const cat = $("#category-select").value;
 
-  // Construimos la query string
   const params = new URLSearchParams();
   if (cat) params.append("categoria", cat);
-  if (q) params.append("nombre", q); // Según el doc, el parámetro es 'nombre'
+  if (q) params.append("nombre", q);
 
   try {
     const data = await api(`/api/productos?${params.toString()}`);
@@ -221,22 +165,18 @@ async function loadProducts() {
       precio: Number(p.precio),
       stock: Number(p.stock),
     }));
-    state.usandoMocks = false;
   } catch (err) {
-    console.warn("Backend no disponible, usando mocks:", err.message);
-    // Si el backend falla, usamos los mocks y filtramos localmente como fallback
+    console.warn("Usando mocks:", err.message);
     let mocks = [...MOCK_PRODUCTS];
     if (cat) mocks = mocks.filter(m => m.categoria === cat);
     if (q) mocks = mocks.filter(m => m.nombre.toLowerCase().includes(q.toLowerCase()));
-    
     state.products = mocks;
-    state.cotizacion = { compra: 950, venta: 1000, moneda: "ARS" };
-    state.usandoMocks = true;
+    state.cotizacion = null; 
   }
 
   const cot = $("#cotizacion-info");
   if (state.cotizacion) {
-    cot.textContent = `💵 Dólar ${state.cotizacion.moneda || "ARS"}: compra $${state.cotizacion.compra} · venta $${state.cotizacion.venta}`;
+    cot.textContent = `💵 Dólar: compra $${state.cotizacion.compra} · venta $${state.cotizacion.venta}`;
     cot.classList.remove("hidden");
   } else {
     cot.classList.add("hidden");
@@ -244,8 +184,6 @@ async function loadProducts() {
 
   renderProducts(state.products);
 }
-
-// Agregar categorias dinamicamente desde el back
 
 async function loadCategories() {
   const select = $("#category-select");
@@ -261,14 +199,9 @@ async function loadCategories() {
       select.appendChild(option);
     });
   } catch (err) {
-    console.warn("Fallo /api/categorias (el backend debe implementarlo)");
+    console.warn("Fallo /api/categorias");
   }
 }
-
-/* =========================================================
-   PRODUCTOS DESTACADOS — se cargan desde GET /api/productos
-   Toma los primeros 4 productos activos de la base.
-   ========================================================= */
 
 async function loadDestacados() {
   const grid = document.getElementById("destacados-grid");
@@ -279,11 +212,9 @@ async function loadDestacados() {
   let productos = [];
   try {
     const data = await api("/api/productos");
-    productos = (data.productos || []).slice(0, 4); // primeros 4
+    productos = (data.productos || []).slice(0, 4); 
     state.destacados = productos;
   } catch (err) {
-    console.warn("No se pudieron cargar destacados:", err.message);
-    // Fallback: usamos los mismos mocks del catálogo si existen
     if (typeof MOCK_PRODUCTS !== "undefined") {
       productos = MOCK_PRODUCTS.slice(0, 4);
       state.destacados = productos;
@@ -291,22 +222,17 @@ async function loadDestacados() {
   }
 
   if (!productos.length) {
-    grid.innerHTML = `<p class="empty-msg">No hay productos destacados para mostrar.</p>`;
+    grid.innerHTML = `<p class="empty-msg">No hay productos destacados.</p>`;
     return;
   }
 
   grid.innerHTML = productos.map((p) => {
-    // La columna de imagen puede llamarse distinto según el schema
-    const imgUrl =
-      p.imagen || p.imagen_url || p.foto || p.image || p.imagenUrl || null;
-
-    // Precio: el backend lo manda como número o string
+    const imgUrl = p.imagen || p.imagen_url || p.foto || p.image || p.imagenUrl || null;
     const precio = Number(p.precio);
     const precioFmt = isNaN(precio) ? "—" : precio.toFixed(2);
 
     const imgHtml = imgUrl
-      ? `<img src="${imgUrl}" alt="${escapeHtml(p.nombre || "Producto")}" 
-              onerror="this.parentElement.innerHTML='<span class=\\'no-img\\'>📦</span>'">`
+      ? `<img src="${imgUrl}" alt="${escapeHtml(p.nombre || "Producto")}" onerror="this.parentElement.innerHTML='<span class=\\'no-img\\'>📦</span>'">`
       : `<span class="no-img">📦</span>`;
 
     return `
@@ -314,32 +240,17 @@ async function loadDestacados() {
         <div class="destacados-img-wrap">${imgHtml}</div>
         <div class="destacados-body">
           <h3 class="card-title">${escapeHtml(p.nombre || "Sin nombre")}</h3>
-          <p class="descripcion-producto">${escapeHtml(p.descripcion || "Sin descripción disponible.")}</p>
+          <p class="descripcion-producto">${escapeHtml(p.descripcion || "Sin descripción.")}</p>
           <span class="precio">$${precioFmt}</span>
-          <button class="btn-primary" onclick="addToCart(${p.id})">Agregar al carrito</button>
+          <button class="btn-primary" onclick="addToCart('${p.id}')">Agregar al carrito</button>
         </div>
       </div>`;
   }).join("");
 }
 
-// Helper para evitar inyección de HTML en nombres/descripciones
 function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-
-/* ---------- INIT ---------- */
-// Cargar destacados al iniciar (aunque no estemos en la vista home,
-// el HTML ya está en el DOM y se llena igual)
-loadDestacados();
-
-// Año dinámico en el footer
-const footerYear = document.getElementById("footer-year");
-if (footerYear) footerYear.textContent = new Date().getFullYear();
 
 function renderProducts(list) {
   const grid = $("#products-grid");
@@ -352,15 +263,12 @@ function renderProducts(list) {
     const sinStock = p.stock <= 0;
     const stockClass = sinStock ? "out" : p.stock <= 5 ? "low" : "";
     const stockText = sinStock ? "Sin stock" : `Stock: ${p.stock}${p.stock <= 5 ? " ⚠️" : ""}`;
-    const usd = p.precioUSD
-      ? `<span class="price-usd">≈ USD ${Number(p.precioUSD).toFixed(2)}</span>`
-      : "";
+    const usd = p.precioUSD ? `<span class="price-usd">≈ USD ${Number(p.precioUSD).toFixed(2)}</span>` : "";
 
-    // Manejo seguro de la imagen: si no viene en la DB, mostramos un emoji
     const imgSrc = p.image || p.imagen || p.foto;
     const imgHtml = imgSrc 
       ? `<img src="${imgSrc}" alt="${p.nombre}" style="width: 100%; height: 100%; object-fit: contain;">` 
-      : "📦"; // Emoji por defecto si el producto no tiene foto
+      : "📦";
 
     return `
     <div class="product-card">
@@ -371,7 +279,8 @@ function renderProducts(list) {
         <span class="price">$${p.precio.toFixed(2)}</span>
         ${usd}
         <span class="stock ${stockClass}">${stockText}</span>
-        <button class="btn-primary" ${sinStock ? "disabled" : ""} onclick="addToCart(${p.id})">
+        <!-- IMPORTANTE: Pasamos el ID entre comillas simples para que no falle si es un string (UUID) -->
+        <button class="btn-primary" ${sinStock ? "disabled" : ""} onclick="addToCart('${p.id}')">
           ${sinStock ? "Sin stock" : "Agregar al carrito"}
         </button>
       </div>
@@ -379,71 +288,25 @@ function renderProducts(list) {
   }).join("");
 }
 
-// $("#search-input").addEventListener("input", () => {
-//   const q = $("#search-input").value.toLowerCase();
-//   const cat = $("#category-select").value;
-//   applyFilters(q, cat);
-// });
-// $("#category-select").addEventListener("change", () => {
-//   const q = $("#search-input").value.toLowerCase();
-//   applyFilters(q, $("#category-select").value);
-// });
-
-// function applyFilters(query, category) {
-//   let list = [...state.products];
-//   if (query) list = list.filter((p) => p.nombre.toLowerCase().includes(query));
-//   if (category) list = list.filter((p) => p.categoria === category);
-//   renderProducts(list);
-// }
-
-// Búsqueda (con un pequeño delay para no saturar el backend)
 let searchTimeout;
 $("#search-input").addEventListener("input", () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    loadProducts();
-  }, 400); // Espera 400ms después de que el usuario deja de tipear
+  searchTimeout = setTimeout(() => { loadProducts(); }, 400); 
 });
-
-// Cambio de categoría
-$("#category-select").addEventListener("change", () => {
-  loadProducts();
-});
+$("#category-select").addEventListener("change", () => { loadProducts(); });
 
 /* ---------- CARRITO ---------- */
-// function addToCart(id) {
-//   const prod = state.products.find((p) => p.id === id || p.id === Number(id));
-//   if (!prod) return;
-//   const existing = state.cart.find((i) => i.id === prod.id);
-//   if (existing) existing.qty++;
-//   else state.cart.push({ ...prod, qty: 1 });
-//   updateCartCount();
-//   toast(`${prod.nombre} agregado 🛒`);
-// }
-
 function addToCart(id) {
-  // Buscamos el producto en el catálogo o en los destacados
-  const prod = state.products.find((p) => String(p.id) === String(id)) || 
-               state.destacados.find((p) => String(p.id) === String(id));
-  
-  if (!prod) {
-    toast("Error: Producto no encontrado", "error");
-    return;
-  }
+  const prod = state.products.find((p) => String(p.id) === String(id)) || state.destacados.find((p) => String(p.id) === String(id));
+  if (!prod) return toast("Error: Producto no encontrado", "error");
 
-  // Verificamos si ya está en el carrito
   const existing = state.cart.find((i) => String(i.id) === String(prod.id));
-  
-  if (existing) {
-    existing.qty++;
-  } else {
-    state.cart.push({ ...prod, qty: 1 });
-  }
+  if (existing) existing.qty++;
+  else state.cart.push({ ...prod, qty: 1 });
   
   updateCartCount();
   toast(`${prod.nombre} agregado 🛒`);
 }
-
 window.addToCart = addToCart;
 
 function updateCartCount() {
@@ -452,17 +315,17 @@ function updateCartCount() {
 }
 
 function changeQty(id, delta) {
-  const item = state.cart.find((i) => i.id === id);
+  const item = state.cart.find((i) => String(i.id) === String(id));
   if (!item) return;
   item.qty += delta;
-  if (item.qty <= 0) state.cart = state.cart.filter((i) => i.id !== id);
+  if (item.qty <= 0) state.cart = state.cart.filter((i) => String(i.id) !== String(id));
   updateCartCount();
   renderCart();
 }
 window.changeQty = changeQty;
 
 function removeItem(id) {
-  state.cart = state.cart.filter((i) => i.id !== id);
+  state.cart = state.cart.filter((i) => String(i.id) !== String(id));
   updateCartCount();
   renderCart();
   toast("Producto eliminado", "info");
@@ -491,12 +354,12 @@ function renderCart() {
         <small>$${i.precio.toFixed(2)} c/u</small>
       </div>
       <div class="controls">
-        <button class="qty-btn" onclick="changeQty(${i.id}, -1)">−</button>
+        <button class="qty-btn" onclick="changeQty('${i.id}', -1)">−</button>
         <span>${i.qty}</span>
-        <button class="qty-btn" onclick="changeQty(${i.id}, 1)">+</button>
+        <button class="qty-btn" onclick="changeQty('${i.id}', 1)">+</button>
       </div>
       <strong class="subtotal">$${(i.precio * i.qty).toFixed(2)}</strong>
-      <button class="remove" onclick="removeItem(${i.id})" title="Quitar">🗑️</button>
+      <button class="remove" onclick="removeItem('${i.id}')" title="Quitar">🗑️</button>
     </div>`
   ).join("");
 
@@ -513,7 +376,9 @@ function updateCheckoutTotal() {
 
 $("#checkout-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!state.token || state.user) {
+  
+  // CORREGIDO: Antes decía || state.user (sin !)
+  if (!state.token || !state.user) {
     toast("Iniciá sesión para comprar", "error");
     $("#modal-login").classList.remove("hidden");
     return;
@@ -523,7 +388,7 @@ $("#checkout-form").addEventListener("submit", async (e) => {
   const direccion = $("#direccion").value.trim();
   if (!direccion) return toast("Ingresá una dirección", "error");
 
-  // Payload exacto según pedidosController.crearPedido
+  // Enviamos el ID tal cual viene (como string para UUIDs de PostgreSQL)
   const body = {
     items: state.cart.map((i) => ({ productoId: i.id, cantidad: i.qty })),
     direccionEntrega: direccion,
@@ -536,7 +401,7 @@ $("#checkout-form").addEventListener("submit", async (e) => {
     });
     state.cart = [];
     updateCartCount();
-    toast(`¡Pedido #${pedido.id} confirmado! 🎉`);
+    toast(`¡Pedido #${pedido.id || 'creado'} confirmado! 🎉`);
     showView("pedidos");
   } catch (err) {
     toast(err.message, "error");
@@ -553,7 +418,7 @@ async function loadOrders() {
   cont.innerHTML = `<p class="empty-msg">Cargando pedidos...</p>`;
 
   try {
-    const pedidos = await api("/api/pedidos"); // <--- RUTA EXACTA DE LA TABLA
+    const pedidos = await api("/api/pedidos");
     state.orders = Array.isArray(pedidos) ? pedidos : [];
     renderOrders(state.orders);
   } catch (err) {
@@ -589,7 +454,7 @@ function renderOrders(list) {
         <span>${fecha}</span>
       </div>
       ${itemsHtml}
-      ${!cancelado ? `<button class="btn-cancelar" onclick="cancelOrder(${o.id})">Cancelar pedido</button>` : ""}
+      ${!cancelado ? `<button class="btn-cancelar" onclick="cancelOrder('${o.id}')">Cancelar pedido</button>` : ""}
     </div>`;
   }).join("");
 }
@@ -607,58 +472,9 @@ async function cancelOrder(id) {
 window.cancelOrder = cancelOrder;
 
 /* ---------- PERFIL ---------- */
-// async function loadProfile() {
-//   const container = $("#cliente-form-container");
-//   const perfilInfo = $(".profile-info");
-
-//   // Datos del usuario logueado (del JWT)
-//   if (state.user) {
-//     $("#profile-nombre").textContent = state.user.nombre || "Usuario";
-//     $("#profile-email").textContent = state.user.email || "—";
-//     $("#profile-rol").textContent = state.user.rol || "—";
-//   } else {
-//     $("#profile-nombre").textContent = "Invitado";
-//     $("#profile-email").textContent = "Sin sesión iniciada";
-//     $("#profile-rol").textContent = "—";
-//     $("#profile-dni").textContent = "—";
-//     $("#profile-telefono").textContent = "—";
-//     $("#profile-direcciones").innerHTML = "<li>—</li>";
-//     container.classList.add("hidden");
-//     return;
-//   }
-
-//   // Sin token no consultamos ms-clientes
-//   if (!state.token) return;
-
-//   try {
-//     // const cliente = await api("/api/clientes/perfil");
-//     const cliente = await api("/api/usuarios/me");
-//     state.perfilCliente = cliente;
-//     $("#profile-dni").textContent = cliente.dni || "—";
-//     $("#profile-telefono").textContent = cliente.telefono || "—";
-//     const dirs = Array.isArray(cliente.direcciones) ? cliente.direcciones : [];
-//     $("#profile-direcciones").innerHTML = dirs.length
-//       ? dirs.map((d) => `<li>${d.calle || ""} ${d.numero || ""} — ${d.ciudad || ""} ${d.esPredeterminada ? "⭐" : ""}</li>`).join("")
-//       : "<li>Sin direcciones cargadas</li>";
-//     container.classList.add("hidden");
-//   } catch (err) {
-//     // 404 = el cliente no existe todavía → mostrar formulario de creación
-//     if (/no encontrado|404/i.test(err.message)) {
-//       state.perfilCliente = null;
-//       $("#profile-dni").textContent = "—";
-//       $("#profile-telefono").textContent = "—";
-//       $("#profile-direcciones").innerHTML = "<li>Completá el formulario para crear tu perfil</li>";
-//       container.classList.remove("hidden");
-//     } else {
-//       toast(err.message, "error");
-//     }
-//   }
-// }
-
 async function loadProfile() {
   const container = $("#cliente-form-container");
 
-  // Mostramos los datos del usuario logueado
   if (state.user) {
     $("#profile-nombre").textContent = state.user.nombre || "Usuario";
     $("#profile-email").textContent = state.user.email || "—";
@@ -688,21 +504,17 @@ async function loadProfile() {
       ? dirs.map((d) => `<li>${d.calle || ""} ${d.numero || ""} — ${d.ciudad || ""} ${d.esPredeterminada ? "⭐" : ""}</li>`).join("")
       : "<li>Sin direcciones cargadas</li>";
       
-    // Si encontramos el perfil, ocultamos el formulario
     container.classList.add("hidden");
   } catch (err) {
-    // SI HAY CUALQUIER ERROR (404, 400, etc.), ASUMIMOS QUE NO EXISTE EL PERFIL
     state.perfilCliente = null;
     $("#profile-dni").textContent = "—";
     $("#profile-telefono").textContent = "—";
     $("#profile-direcciones").innerHTML = "<li>Completá el formulario para crear tu perfil</li>";
-    
-    // MOSTRAMOS EL FORMULARIO SIEMPRE QUE FALLE
     container.classList.remove("hidden"); 
   }
 }
 
-/* ---------- CREAR PERFIL DE CLIENTE (POST /api/clientes) ---------- */
+/* ---------- CREAR PERFIL DE CLIENTE (Usa la ruta real /api/clientes) ---------- */
 $("#cliente-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   
@@ -710,22 +522,33 @@ $("#cliente-form").addEventListener("submit", async (e) => {
     nombre: $("#cl-nombre").value.trim(),
     apellido: $("#cl-apellido").value.trim(),
     dni: $("#cl-dni").value.trim(),
+    email: state.user?.email || "sin-email@test.com",
     telefono: $("#cl-telefono").value.trim() || undefined,
     direccion: $("#cl-direccion").value.trim(),
   };
 
   try {
-    await api("/api/usuarios/me", {
-      method: "PUT",
+    // Usamos el endpoint original del ms-clientes que sabemos que funciona
+    await api("/api/clientes", {
+      method: "POST",
       body: JSON.stringify(body),
     });
-    toast("Perfil actualizado ✅");
+    toast("Perfil creado con éxito ✅");
     loadProfile();
   } catch (err) {
-    toast(err.message, "error");
+    // Si el cliente ya existe, intentamos actualizarlo
+    try {
+      await api("/api/clientes/perfil", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      toast("Perfil actualizado ✅");
+      loadProfile();
+    } catch (err2) {
+      toast(err2.message || err.message, "error");
+    }
   }
 });
-
 
 /* ---------- INIT ---------- */
 async function init() {
@@ -733,16 +556,15 @@ async function init() {
   loadCategories();
   loadDestacados();
 
-  // Persistencia de sesión
+  const footerYear = document.getElementById("footer-year");
+  if (footerYear) footerYear.textContent = new Date().getFullYear();
+
   if (state.token) {
     try {
-      // El documento pide GET /api/usuarios/me
-      // NOTA: Si tu backend actual usa /api/usuarios/auth/perfil, cambialo acá.
       const usuario = await api("/api/usuarios/me"); 
       state.user = usuario;
       updateAuthUI();
     } catch (err) {
-      console.warn("Token vencido o inválido, limpiando sesión.");
       state.token = null;
       state.user = null;
       localStorage.removeItem(TOKEN_KEY);

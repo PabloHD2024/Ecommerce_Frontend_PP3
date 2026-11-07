@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TechStore | E-commerce de Microservicios</title>
+  <title>TechStore | E-commerce</title>
   <link rel="stylesheet" href="./css/styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 </head>
@@ -17,7 +17,7 @@
     </nav>
     <div class="nav-actions">
       <button type="button" id="btn-cart" class="btn-icon" title="Carrito">
-        <i class="fas fa-cart-shopping"></i> <span id="cart-count" class="badge">0</span>
+        <i class="fas fa-shopping-cart"></i> <span id="cart-count" class="badge">0</span>
       </button>
       <button type="button" id="btn-login" class="btn-primary">Ingresar</button>
       <button type="button" id="btn-register" class="btn-secondary">Registrarse</button>
@@ -45,8 +45,8 @@
       <span id="cotizacion-info" class="cotizacion hidden"></span>
     </div>
     <div class="filters">
-      <input type="text" id="search-input" placeholder="Buscar producto..." >
-            <select id="category-select">
+      <input type="text" id="search-input" placeholder="Buscar producto...">
+      <select id="category-select">
         <option value="">Todas las categorías</option>
       </select>
     </div>
@@ -68,13 +68,13 @@
     <h2>Checkout</h2>
     <form id="checkout-form" class="form">
       <label>Dirección de entrega
-        <input type="text" id="direccion" required placeholder="Av. Siempre Viva 123, Buenos Aires" >
+        <input type="text" id="direccion" required placeholder="Av. Siempre Viva 123, Buenos Aires">
       </label>
       <label>Método de pago (referencia)
         <select id="metodo-pago">
-          <option value="tarjeta"> Tarjeta de crédito</option>
-          <option value="transferencia"> Transferencia</option>
-          <option value="efectivo"> Efectivo</option>
+          <option value="tarjeta">Tarjeta de crédito</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="efectivo">Efectivo</option>
         </select>
       </label>
       <div class="checkout-summary">
@@ -110,14 +110,14 @@
         <ul id="profile-direcciones"><li>—</li></ul>
       </div>
       <div id="cliente-form-container" class="hidden">
-        <hr class="divider" >
+        <hr class="divider">
         <h4 class="form-title">Completá tu perfil de cliente</h4>
         <form id="cliente-form" class="form">
-          <label>Nombre <input type="text" id="cl-nombre" required ></label>
-          <label>Apellido <input type="text" id="cl-apellido" required ></label>
-          <label>DNI <input type="text" id="cl-dni" required ></label>
-          <label>Teléfono <input type="text" id="cl-telefono" ></label>
-          <label>Dirección<input type="text" id="cl-direcciones"></label>
+          <label>Nombre <input type="text" id="cl-nombre" required></label>
+          <label>Apellido <input type="text" id="cl-apellido" required></label>
+          <label>DNI <input type="text" id="cl-dni" required></label>
+          <label>Teléfono <input type="text" id="cl-telefono"></label>
+          <label>Dirección <input type="text" id="cl-direccion"></label>
           <button type="submit" class="btn-primary">Guardar perfil</button>
         </form>
       </div>
@@ -129,13 +129,12 @@
     <div class="modal-content">
       <h3>Iniciar Sesión</h3>
       <form id="login-form" class="form">
-        <label>Email <input type="email" id="login-email" required placeholder="demo@techstore.com" ></label>
+        <label>Email <input type="email" id="login-email" required placeholder="demo@techstore.com"></label>
         <label>Contraseña <input autocomplete="current-password" type="password" id="login-password" required placeholder="••••••••"></label>
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-login')">Cancelar</button>
           <button type="submit" class="btn-primary">Ingresar</button>
         </div>
-        <!-- <small class="hint" id="login-hint">Usá una cuenta registrada en la tienda.</small> -->
       </form>
     </div>
   </div>
@@ -145,10 +144,10 @@
     <div class="modal-content">
       <h3>Crear Cuenta</h3>
       <form id="register-form" class="form">
-        <label>Nombre <input type="text" id="reg-nombre" required ></label>
-        <label>Apellido <input type="text" id="reg-apellido" required ></label>
-        <label>Email <input type="email" id="reg-email" required ></label>
-        <label>Contraseña (mín. 8) <input autocomplete="new-password" type="password" id="reg-password" required minlength="8" ></label>
+        <label>Nombre <input type="text" id="reg-nombre" required></label>
+        <label>Apellido <input type="text" id="reg-apellido" required></label>
+        <label>Email <input type="email" id="reg-email" required></label>
+        <label>Contraseña (mín. 8) <input autocomplete="new-password" type="password" id="reg-password" required minlength="8"></label>
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-register')">Cancelar</button>
           <button type="submit" class="btn-primary">Registrarme</button>
@@ -157,13 +156,13 @@
     </div>
   </div>
 
-    <!-- ============ FOOTER ============ -->
+  <!-- ============ FOOTER ============ -->
   <footer class="footer">
     <div class="footer-container">
       <div class="footer-col">
         <h4 class="footer-brand">TechStore</h4>
         <p class="footer-desc">
-          E-commerce de tecnología construido sobre una arquitectura de microservicios con API Gateway.
+          E-commerce de tecnología con los mejores productos del mercado.
         </p>
         <div class="footer-social">
           <a href="#" title="Facebook" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
@@ -205,13 +204,11 @@
 
     <div class="footer-bottom">
       <p>© <span id="footer-year"></span> TechStore · PP3 IFTS N°16 · Grupo 1</p>
-      <p class="footer-tech">Hecho con microservicios en la nube</p>
+      <p class="footer-tech">Hecho con tecnología de vanguardia</p>
     </div>
   </footer>
 
-  <!-- ============ TOAST ============ -->
   <div id="toast" class="toast hidden"></div>
-
   <script src="app.js"></script>
 </body>
 </html>
