@@ -676,6 +676,7 @@ window.cancelOrder = cancelOrder;
 async function loadProfile() {
   const container = $("#cliente-form-container");
 
+  // Mostramos los datos del usuario logueado
   if (state.user) {
     $("#profile-nombre").textContent = state.user.nombre || "Usuario";
     $("#profile-email").textContent = state.user.email || "—";
@@ -700,23 +701,22 @@ async function loadProfile() {
     $("#profile-dni").textContent = cliente.dni || "—";
     $("#profile-telefono").textContent = cliente.telefono || "—";
     
-    // Protegemos si "direcciones" viene undefined
     const dirs = Array.isArray(cliente.direcciones) ? cliente.direcciones : [];
     $("#profile-direcciones").innerHTML = dirs.length
       ? dirs.map((d) => `<li>${d.calle || ""} ${d.numero || ""} — ${d.ciudad || ""} ${d.esPredeterminada ? "⭐" : ""}</li>`).join("")
       : "<li>Sin direcciones cargadas</li>";
       
+    // Si encontramos el perfil, ocultamos el formulario
     container.classList.add("hidden");
   } catch (err) {
-    if (/no encontrado|404/i.test(err.message)) {
-      state.perfilCliente = null;
-      $("#profile-dni").textContent = "—";
-      $("#profile-telefono").textContent = "—";
-      $("#profile-direcciones").innerHTML = "<li>Completá el formulario para crear tu perfil</li>";
-      container.classList.remove("hidden");
-    } else {
-      toast(err.message, "error");
-    }
+    // SI HAY CUALQUIER ERROR (404, 400, etc.), ASUMIMOS QUE NO EXISTE EL PERFIL
+    state.perfilCliente = null;
+    $("#profile-dni").textContent = "—";
+    $("#profile-telefono").textContent = "—";
+    $("#profile-direcciones").innerHTML = "<li>Completá el formulario para crear tu perfil</li>";
+    
+    // MOSTRAMOS EL FORMULARIO SIEMPRE QUE FALLE
+    container.classList.remove("hidden"); 
   }
 }
 
