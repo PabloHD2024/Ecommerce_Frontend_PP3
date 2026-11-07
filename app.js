@@ -711,6 +711,7 @@ $("#cliente-form").addEventListener("submit", async (e) => {
     apellido: $("#cl-apellido").value.trim(),
     dni: $("#cl-dni").value.trim(),
     telefono: $("#cl-telefono").value.trim() || undefined,
+    direccion: $("#cl-direccion").value.trim(),
   };
 
   try {
