@@ -99,22 +99,17 @@ $("#login-form").addEventListener("submit", async (e) => {
   const password = $("#login-password").value;
   
   try {
-    const data = await api("/api/sesiones", { // o la ruta que estés usando
+    const data = await api("/api/sesiones", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
     
     state.token = data.token;
-    // Protegemos por si el backend devuelve "user" en vez de "usuario"
     state.user = data.usuario || data.user || {}; 
     
     localStorage.setItem(TOKEN_KEY, data.token);
     closeModal("modal-login");
     updateAuthUI();
-    
-    // Protegemos el nombre
-    const nombreUsuario = state.user.nombre || "Usuario";
-    toast(`¡Bienvenido, ${nombreUsuario}!`);
     showView("perfil");
   } catch (err) {
     toast(err.message, "error");
@@ -124,18 +119,17 @@ $("#login-form").addEventListener("submit", async (e) => {
 $("#register-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const nombre = $("#reg-nombre").value.trim();
-  const apellido = $("#reg-apellido").value.trim();
   const email = $("#reg-email").value.trim();
   const password = $("#reg-password").value;
+  
   try {
     await api("/api/usuarios", {
       method: "POST",
-      body: JSON.stringify({ nombre, apellido, email, password }),
+      body: JSON.stringify({ nombre, email, password }),
     });
     toast("Cuenta creada. Ahora iniciá sesión.");
     closeModal("modal-register");
     $("#login-email").value = email;
-    $("#login-password").value = "";
     $("#modal-login").classList.remove("hidden");
   } catch (err) {
     toast(err.message, "error");
@@ -258,10 +252,7 @@ async function loadCategories() {
   if (!select) return;
 
   try {
-    // El documento pide GET /api/categorias
     const categorias = await api("/api/categorias");
-    
-    // Asumimos que el backend devuelve un array de strings o de objetos { nombre, ... }
     categorias.forEach(cat => {
       const valor = typeof cat === 'string' ? cat : cat.nombre || cat.categoria;
       const option = document.createElement("option");
@@ -270,15 +261,7 @@ async function loadCategories() {
       select.appendChild(option);
     });
   } catch (err) {
-    console.warn("No se pudieron cargar las categorías dinámicas:", err.message);
-    // Fallback: cargamos las categorías de los mocks si el backend falla
-    const catsFallback = [...new Set(MOCK_PRODUCTS.map(p => p.categoria))];
-    catsFallback.forEach(cat => {
-      const option = document.createElement("option");
-      option.value = cat;
-      option.textContent = cat;
-      select.appendChild(option);
-    });
+    console.warn("Fallo /api/categorias (el backend debe implementarlo)");
   }
 }
 
@@ -563,7 +546,6 @@ $("#checkout-form").addEventListener("submit", async (e) => {
 /* ---------- PEDIDOS ---------- */
 async function loadOrders() {
   const cont = $("#orders-list");
-
   if (!state.token) {
     cont.innerHTML = `<p class="empty-msg">Iniciá sesión para ver tus pedidos.</p>`;
     return;
@@ -571,7 +553,7 @@ async function loadOrders() {
   cont.innerHTML = `<p class="empty-msg">Cargando pedidos...</p>`;
 
   try {
-    const pedidos = await api("/api/pedidos");
+    const pedidos = await api("/api/pedidos"); // <--- RUTA EXACTA DE LA TABLA
     state.orders = Array.isArray(pedidos) ? pedidos : [];
     renderOrders(state.orders);
   } catch (err) {
@@ -723,12 +705,14 @@ async function loadProfile() {
 /* ---------- CREAR PERFIL DE CLIENTE (POST /api/clientes) ---------- */
 $("#cliente-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  
   const body = {
     nombre: $("#cl-nombre").value.trim(),
     apellido: $("#cl-apellido").value.trim(),
     dni: $("#cl-dni").value.trim(),
     telefono: $("#cl-telefono").value.trim() || undefined,
   };
+
   try {
     await api("/api/usuarios/me", {
       method: "PUT",
