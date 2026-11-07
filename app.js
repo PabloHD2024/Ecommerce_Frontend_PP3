@@ -77,7 +77,7 @@ $("#login-form").addEventListener("submit", async (e) => {
   const email = $("#login-email").value.trim();
   const password = $("#login-password").value;
   try {
-    const data = await api("/api/usuarios/auth/login", {
+    const data = await api("/api/sesiones", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
@@ -100,7 +100,7 @@ $("#register-form").addEventListener("submit", async (e) => {
   const email = $("#reg-email").value.trim();
   const password = $("#reg-password").value;
   try {
-    await api("/api/usuarios/auth/register", {
+    await api("/api/usuarios", {
       method: "POST",
       body: JSON.stringify({ nombre, apellido, email, password }),
     });
@@ -543,7 +543,7 @@ async function loadOrders() {
   cont.innerHTML = `<p class="empty-msg">Cargando pedidos...</p>`;
 
   try {
-    const pedidos = await api("/api/pedidos/mis-pedidos");
+    const pedidos = await api("/api/pedidos");
     state.orders = Array.isArray(pedidos) ? pedidos : [];
     renderOrders(state.orders);
   } catch (err) {
