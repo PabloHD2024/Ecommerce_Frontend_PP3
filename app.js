@@ -72,21 +72,49 @@ $("#btn-register").addEventListener("click", () => $("#modal-register").classLis
 function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
 window.closeModal = closeModal;
 
+// $("#login-form").addEventListener("submit", async (e) => {
+//   e.preventDefault();
+//   const email = $("#login-email").value.trim();
+//   const password = $("#login-password").value;
+//   try {
+//     const data = await api("/api/sesiones", {
+//       method: "POST",
+//       body: JSON.stringify({ email, password }),
+//     });
+//     state.token = data.token;
+//     state.user = data.usuario;
+//     localStorage.setItem(TOKEN_KEY, data.token);
+//     closeModal("modal-login");
+//     updateAuthUI();
+//     toast(`¡Bienvenido, ${state.user.nombre}!`);
+//     showView("perfil");
+//   } catch (err) {
+//     toast(err.message, "error");
+//   }
+// });
+
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("#login-email").value.trim();
   const password = $("#login-password").value;
+  
   try {
-    const data = await api("/api/sesiones", {
+    const data = await api("/api/sesiones", { // o la ruta que estés usando
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
+    
     state.token = data.token;
-    state.user = data.usuario;
+    // Protegemos por si el backend devuelve "user" en vez de "usuario"
+    state.user = data.usuario || data.user || {}; 
+    
     localStorage.setItem(TOKEN_KEY, data.token);
     closeModal("modal-login");
     updateAuthUI();
-    toast(`¡Bienvenido, ${state.user.nombre}!`);
+    
+    // Protegemos el nombre
+    const nombreUsuario = state.user.nombre || "Usuario";
+    toast(`¡Bienvenido, ${nombreUsuario}!`);
     showView("perfil");
   } catch (err) {
     toast(err.message, "error");
@@ -502,7 +530,7 @@ function updateCheckoutTotal() {
 
 $("#checkout-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!state.token) {
+  if (!state.token || state.user) {
     toast("Iniciá sesión para comprar", "error");
     $("#modal-login").classList.remove("hidden");
     return;
@@ -597,11 +625,57 @@ async function cancelOrder(id) {
 window.cancelOrder = cancelOrder;
 
 /* ---------- PERFIL ---------- */
+// async function loadProfile() {
+//   const container = $("#cliente-form-container");
+//   const perfilInfo = $(".profile-info");
+
+//   // Datos del usuario logueado (del JWT)
+//   if (state.user) {
+//     $("#profile-nombre").textContent = state.user.nombre || "Usuario";
+//     $("#profile-email").textContent = state.user.email || "—";
+//     $("#profile-rol").textContent = state.user.rol || "—";
+//   } else {
+//     $("#profile-nombre").textContent = "Invitado";
+//     $("#profile-email").textContent = "Sin sesión iniciada";
+//     $("#profile-rol").textContent = "—";
+//     $("#profile-dni").textContent = "—";
+//     $("#profile-telefono").textContent = "—";
+//     $("#profile-direcciones").innerHTML = "<li>—</li>";
+//     container.classList.add("hidden");
+//     return;
+//   }
+
+//   // Sin token no consultamos ms-clientes
+//   if (!state.token) return;
+
+//   try {
+//     // const cliente = await api("/api/clientes/perfil");
+//     const cliente = await api("/api/usuarios/me");
+//     state.perfilCliente = cliente;
+//     $("#profile-dni").textContent = cliente.dni || "—";
+//     $("#profile-telefono").textContent = cliente.telefono || "—";
+//     const dirs = Array.isArray(cliente.direcciones) ? cliente.direcciones : [];
+//     $("#profile-direcciones").innerHTML = dirs.length
+//       ? dirs.map((d) => `<li>${d.calle || ""} ${d.numero || ""} — ${d.ciudad || ""} ${d.esPredeterminada ? "⭐" : ""}</li>`).join("")
+//       : "<li>Sin direcciones cargadas</li>";
+//     container.classList.add("hidden");
+//   } catch (err) {
+//     // 404 = el cliente no existe todavía → mostrar formulario de creación
+//     if (/no encontrado|404/i.test(err.message)) {
+//       state.perfilCliente = null;
+//       $("#profile-dni").textContent = "—";
+//       $("#profile-telefono").textContent = "—";
+//       $("#profile-direcciones").innerHTML = "<li>Completá el formulario para crear tu perfil</li>";
+//       container.classList.remove("hidden");
+//     } else {
+//       toast(err.message, "error");
+//     }
+//   }
+// }
+
 async function loadProfile() {
   const container = $("#cliente-form-container");
-  const perfilInfo = $(".profile-info");
 
-  // Datos del usuario logueado (del JWT)
   if (state.user) {
     $("#profile-nombre").textContent = state.user.nombre || "Usuario";
     $("#profile-email").textContent = state.user.email || "—";
@@ -617,22 +691,23 @@ async function loadProfile() {
     return;
   }
 
-  // Sin token no consultamos ms-clientes
   if (!state.token) return;
 
   try {
-    // const cliente = await api("/api/clientes/perfil");
-    const cliente = await api("/api/usuarios/me");
-    state.perfilCliente = cliente;
+    const cliente = await api("/api/clientes/perfil");
+    state.perfilCliente = cliente || {};
+    
     $("#profile-dni").textContent = cliente.dni || "—";
     $("#profile-telefono").textContent = cliente.telefono || "—";
+    
+    // Protegemos si "direcciones" viene undefined
     const dirs = Array.isArray(cliente.direcciones) ? cliente.direcciones : [];
     $("#profile-direcciones").innerHTML = dirs.length
       ? dirs.map((d) => `<li>${d.calle || ""} ${d.numero || ""} — ${d.ciudad || ""} ${d.esPredeterminada ? "⭐" : ""}</li>`).join("")
       : "<li>Sin direcciones cargadas</li>";
+      
     container.classList.add("hidden");
   } catch (err) {
-    // 404 = el cliente no existe todavía → mostrar formulario de creación
     if (/no encontrado|404/i.test(err.message)) {
       state.perfilCliente = null;
       $("#profile-dni").textContent = "—";
