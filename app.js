@@ -504,7 +504,8 @@ async function loadProfile() {
   if (!state.token) return;
 
   try {
-    const cliente = await api("/api/clientes/perfil");
+    // const cliente = await api("/api/clientes/perfil");
+    const cliente = await api("/api/usuarios/me");
     state.perfilCliente = cliente;
     $("#profile-dni").textContent = cliente.dni || "—";
     $("#profile-telefono").textContent = cliente.telefono || "—";
@@ -537,7 +538,7 @@ $("#cliente-form").addEventListener("submit", async (e) => {
     telefono: $("#cl-telefono").value.trim() || undefined,
   };
   try {
-    await api("/api/clientes", {
+    await api("/api/usuarios", {
       method: "POST",
       body: JSON.stringify(body),
     });
