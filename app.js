@@ -13,6 +13,7 @@ let state = {
   user: null,
   cart: [],
   products: [],
+  destacados: [],
   cotizacion: null,
   orders: [],
   perfilCliente: null,
@@ -268,11 +269,13 @@ async function loadDestacados() {
   try {
     const data = await api("/api/productos");
     productos = (data.productos || []).slice(0, 4); // primeros 4
+    state.destacados = productos;
   } catch (err) {
     console.warn("No se pudieron cargar destacados:", err.message);
     // Fallback: usamos los mismos mocks del catálogo si existen
     if (typeof MOCK_PRODUCTS !== "undefined") {
       productos = MOCK_PRODUCTS.slice(0, 4);
+      state.destacados = productos;
     }
   }
 
@@ -397,15 +400,39 @@ $("#category-select").addEventListener("change", () => {
 });
 
 /* ---------- CARRITO ---------- */
+// function addToCart(id) {
+//   const prod = state.products.find((p) => p.id === id || p.id === Number(id));
+//   if (!prod) return;
+//   const existing = state.cart.find((i) => i.id === prod.id);
+//   if (existing) existing.qty++;
+//   else state.cart.push({ ...prod, qty: 1 });
+//   updateCartCount();
+//   toast(`${prod.nombre} agregado 🛒`);
+// }
+
 function addToCart(id) {
-  const prod = state.products.find((p) => p.id === id || p.id === Number(id));
-  if (!prod) return;
-  const existing = state.cart.find((i) => i.id === prod.id);
-  if (existing) existing.qty++;
-  else state.cart.push({ ...prod, qty: 1 });
+  // Buscamos el producto en el catálogo o en los destacados
+  const prod = state.products.find((p) => String(p.id) === String(id)) || 
+               state.destacados.find((p) => String(p.id) === String(id));
+  
+  if (!prod) {
+    toast("Error: Producto no encontrado", "error");
+    return;
+  }
+
+  // Verificamos si ya está en el carrito
+  const existing = state.cart.find((i) => String(i.id) === String(prod.id));
+  
+  if (existing) {
+    existing.qty++;
+  } else {
+    state.cart.push({ ...prod, qty: 1 });
+  }
+  
   updateCartCount();
   toast(`${prod.nombre} agregado 🛒`);
 }
+
 window.addToCart = addToCart;
 
 function updateCartCount() {
