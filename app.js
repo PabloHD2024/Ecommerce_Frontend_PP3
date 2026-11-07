@@ -655,11 +655,11 @@ $("#cliente-form").addEventListener("submit", async (e) => {
     telefono: $("#cl-telefono").value.trim() || undefined,
   };
   try {
-    await api("/api/usuarios", {
-      method: "POST",
+    await api("/api/usuarios/me", {
+      method: "PUT",
       body: JSON.stringify(body),
     });
-    toast("Perfil de cliente creado ✅");
+    toast("Perfil actualizado ✅");
     loadProfile();
   } catch (err) {
     toast(err.message, "error");
