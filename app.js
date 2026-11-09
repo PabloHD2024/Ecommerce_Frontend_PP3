@@ -3,7 +3,7 @@
    Gateway: https://pp3-ecommerce-api-gateway.onrender.com
    ========================================================= */
 
-const API_BASE = "https://pp3-ecommerce-api-gateway.onrender.com"; 
+const API_BASE = "https://pp3-ecommerce-api-gateway.onrender.com";
 const TOKEN_KEY = "techstore_token";
 
 /* ---------- ESTADO ---------- */
@@ -11,12 +11,17 @@ let state = {
   token: localStorage.getItem(TOKEN_KEY) || null,
   user: null,
   cart: [],
+  cartReady: false,
+  cartBusy: false,
   products: [],
   destacados: [],
   cotizacion: null,
   orders: [],
-  perfilCliente: null,
-  usandoMocks: false,
+  paymentBusy: false,
+  cancellationBusy: false,
+  checkoutBusy: false,
+  checkoutAttempt: null,
+  page: 1,
 };
 
 /* ---------- HELPERS ---------- */
@@ -33,16 +38,33 @@ function toast(msg, type = "success") {
 }
 
 async function api(path, options = {}) {
+  const requestToken = state.token;
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (state.token) headers["Authorization"] = `Bearer ${state.token}`;
   let res;
+  let data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal });
+    data = await res.json().catch((error) => {
+      if (controller.signal.aborted) throw error;
+      if (!res.ok) return {};
+      throw new Error("El servidor devolvió una respuesta inválida. Consultá el estado antes de reintentar.");
+    });
   } catch (networkErr) {
-    throw new Error("No se pudo conectar al servidor.");
+    if (res && !controller.signal.aborted) throw networkErr;
+    throw new Error(controller.signal.aborted ? "El servidor tardó demasiado en responder." : "No se pudo conectar al servidor.");
+  } finally {
+    clearTimeout(timer);
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`);
+  if (!res.ok) {
+    const error = new Error(data.error || data.message || data.mensaje || `Error ${res.status}`);
+    error.status = res.status;
+    error.data = data;
+    if (res.status === 401 && requestToken && state.token === requestToken && path !== "/api/sesiones") clearSession();
+    throw error;
+  }
   return data;
 }
 
@@ -53,7 +75,7 @@ function showView(name) {
   if (el) el.classList.add("active");
 
   if (name === "catalogo") loadProducts();
-  if (name === "carrito") renderCart();
+  if (name === "carrito") loadCart();
   if (name === "checkout") updateCheckoutTotal();
   if (name === "pedidos") loadOrders();
   if (name === "perfil") loadProfile();
@@ -62,33 +84,46 @@ function showView(name) {
 }
 window.showView = showView;
 
-$$(".nav-links a").forEach((a) =>
+$$("a[data-view]").forEach((a) =>
   a.addEventListener("click", (e) => { e.preventDefault(); showView(a.dataset.view); })
 );
 
 /* ---------- AUTH ---------- */
 $("#btn-login").addEventListener("click", () => $("#modal-login").classList.remove("hidden"));
 $("#btn-register").addEventListener("click", () => $("#modal-register").classList.remove("hidden"));
-function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
+function closeModal(id) {
+  document.getElementById(id).classList.add("hidden");
+  if (id === "modal-receipt") {
+    ++receiptRequest;
+    $("#receipt-content").textContent = "";
+  }
+}
 window.closeModal = closeModal;
 
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("#login-email").value.trim();
   const password = $("#login-password").value;
-  
+
   try {
     const data = await api("/api/sesiones", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    
+
+    if (!data.token || !(data.user || data.usuario)) throw new Error("Respuesta de sesión inválida");
+    const user = normalizeUser(data.user || data.usuario);
+    clearSession();
     state.token = data.token;
-    state.user = data.usuario || data.user || {}; 
-    
+    state.user = user;
+    state.cart = [];
+    state.cartReady = false;
+    state.checkoutAttempt = null;
+
     localStorage.setItem(TOKEN_KEY, data.token);
     closeModal("modal-login");
     updateAuthUI();
+    await restoreSession();
     showView("perfil");
   } catch (err) {
     toast(err.message, "error");
@@ -101,12 +136,12 @@ $("#register-form").addEventListener("submit", async (e) => {
   const apellido = $("#reg-apellido") ? $("#reg-apellido").value.trim() : "";
   const email = $("#reg-email").value.trim();
   const password = $("#reg-password").value;
-  
+
   try {
-    // Enviamos nombre y apellido. Si el back no acepta apellido, lo ignorará.
+    // Registro público: nunca enviar role ni credenciales de servicio.
     await api("/api/usuarios", {
       method: "POST",
-      body: JSON.stringify({ nombre, apellido, email, password }),
+      body: JSON.stringify({ name: nombre, apellido, email, password }),
     });
     toast("Cuenta creada. Ahora iniciá sesión.");
     closeModal("modal-register");
@@ -118,60 +153,115 @@ $("#register-form").addEventListener("submit", async (e) => {
 });
 
 $("#btn-logout").addEventListener("click", () => {
-  state.token = null;
-  state.user = null;
-  state.perfilCliente = null;
-  state.orders = [];
-  state.cart = []; // Vaciamos el carrito para el próximo usuario
-  localStorage.removeItem(TOKEN_KEY);
-  updateCartCount();
-  updateAuthUI();
+  clearSession();
   toast("Sesión cerrada", "info");
   showView("home");
 });
+
+function normalizeUser(user) {
+  if (!user || typeof user !== "object") throw new Error("Respuesta de perfil inválida");
+  return { ...user, name: user.name ?? user.nombre ?? "", role: user.role ?? user.rol ?? "" };
+}
+
+function clearSession() {
+  $("#modal-receipt").classList.add("hidden");
+  $("#receipt-content").textContent = "";
+  state.token = null;
+  state.user = null;
+  state.orders = [];
+  state.cart = [];
+  state.cartReady = false;
+  state.cartBusy = false;
+  state.checkoutBusy = false;
+  state.checkoutAttempt = null;
+  state.paymentBusy = false;
+  state.cancellationBusy = false;
+  $("#direccion").value = "";
+  $("#coupon-code").value = "";
+  localStorage.removeItem(TOKEN_KEY);
+  updateCartCount();
+  updateAuthUI();
+  renderProfile();
+  renderCart();
+  $("#orders-list").innerHTML = "";
+}
+
+async function restoreSession() {
+  if (!state.token) return;
+  const token = state.token;
+  try {
+    const response = await api("/api/usuarios/me");
+    if (state.token !== token) return;
+    state.user = normalizeUser(response.user);
+    state.checkoutAttempt = localStorage.getItem(`techstore_attempt_${state.user.id}`) || null;
+    if (!state.cartReady) await loadCart();
+  } catch (err) {
+    // api clears only an unauthorized session. A transient failure is retryable.
+    if (state.token === token && err.status !== 401) toast("No se pudo verificar la sesión. Reintentá desde Perfil.", "error");
+  }
+  updateAuthUI();
+}
 
 function updateAuthUI() {
   const logged = !!state.token;
   $("#btn-login").classList.toggle("hidden", logged);
   $("#btn-register").classList.toggle("hidden", logged);
   $("#btn-logout").classList.toggle("hidden", !logged);
+
+  // NUEVO: Manejo del nombre en el nav
+  const navUser = $("#nav-username");
+  if (navUser) {
+    if (logged && state.user && state.user.name) {
+      // Si está logueado y tiene nombre, lo mostramos
+      navUser.textContent = `👋 Hola, ${state.user.name}`;
+      navUser.classList.remove("hidden");
+    } else {
+      // Si no está logueado, lo ocultamos y limpiamos
+      navUser.textContent = "";
+      navUser.classList.add("hidden");
+    }
+  }
 }
 
 /* ---------- PRODUCTOS ---------- */
-const MOCK_PRODUCTS = [
-  { id: 1, nombre: "Notebook Pro 14", descripcion: "Intel i7 · 16GB RAM", precio: 1299.99, stock: 8, categoria: "laptops" },
-  { id: 2, nombre: "Auriculares BT Pro", descripcion: "Cancelación de ruido", precio: 199.50, stock: 25, categoria: "audio" },
-];
-
 const EMOJIS = { laptops: "💻", audio: "🎧", accesorios: "🖱️", monitores: "🖥️", default: "📦" };
 function emojiFor(p) { return EMOJIS[p.categoria] || EMOJIS.default; }
 
-async function loadProducts() {
+let catalogRequest = 0;
+async function loadProducts(page = 1) {
+  const request = ++catalogRequest;
+  state.page = page;
   const grid = $("#products-grid");
   grid.innerHTML = `<p class="empty-msg">Cargando productos...</p>`;
-  
+
   const q = $("#search-input").value.trim();
   const cat = $("#category-select").value;
 
   const params = new URLSearchParams();
+  params.set("page", page);
   if (cat) params.append("categoria", cat);
   if (q) params.append("nombre", q);
 
   try {
     const data = await api(`/api/productos?${params.toString()}`);
+    if (request !== catalogRequest) return;
     state.cotizacion = data.cotizacion || null;
-    state.products = (data.productos || []).map((p) => ({
+    $("#catalog-prev").disabled = !data.pagination?.hasPreviousPage;
+    $("#catalog-next").disabled = !data.pagination?.hasNextPage;
+    state.products = (data.items || data.productos || []).map((p) => ({
       ...p,
       precio: Number(p.precio),
       stock: Number(p.stock),
     }));
   } catch (err) {
-    console.warn("Usando mocks:", err.message);
-    let mocks = [...MOCK_PRODUCTS];
-    if (cat) mocks = mocks.filter(m => m.categoria === cat);
-    if (q) mocks = mocks.filter(m => m.nombre.toLowerCase().includes(q.toLowerCase()));
-    state.products = mocks;
-    state.cotizacion = null; 
+    if (request !== catalogRequest) return;
+    $("#catalog-prev").disabled = true;
+    $("#catalog-next").disabled = true;
+    state.products = [];
+    state.cotizacion = null;
+    $("#cotizacion-info").classList.add("hidden");
+    grid.innerHTML = `<p class="empty-msg">No se pudo cargar el catálogo. Reintentá en unos instantes.</p>`;
+    return;
   }
 
   const cot = $("#cotizacion-info");
@@ -212,13 +302,12 @@ async function loadDestacados() {
   let productos = [];
   try {
     const data = await api("/api/productos");
-    productos = (data.productos || []).slice(0, 4); 
+    productos = (data.items || data.productos || []).slice(0, 4);
     state.destacados = productos;
   } catch (err) {
-    if (typeof MOCK_PRODUCTS !== "undefined") {
-      productos = MOCK_PRODUCTS.slice(0, 4);
-      state.destacados = productos;
-    }
+    state.destacados = [];
+    grid.innerHTML = `<p class="empty-msg">No se pudieron cargar los destacados.</p>`;
+    return;
   }
 
   if (!productos.length) {
@@ -231,8 +320,8 @@ async function loadDestacados() {
     const precio = Number(p.precio);
     const precioFmt = isNaN(precio) ? "—" : precio.toFixed(2);
 
-    const imgHtml = imgUrl
-      ? `<img src="${imgUrl}" alt="${escapeHtml(p.nombre || "Producto")}" onerror="this.parentElement.innerHTML='<span class=\\'no-img\\'>📦</span>'">`
+    const imgHtml = safeImageUrl(imgUrl)
+      ? `<img src="${safeImageUrl(imgUrl)}" alt="${escapeHtml(p.nombre || "Producto")}">`
       : `<span class="no-img">📦</span>`;
 
     return `
@@ -242,7 +331,7 @@ async function loadDestacados() {
           <h3 class="card-title">${escapeHtml(p.nombre || "Sin nombre")}</h3>
           <p class="descripcion-producto">${escapeHtml(p.descripcion || "Sin descripción.")}</p>
           <span class="precio">$${precioFmt}</span>
-          <button class="btn-primary" onclick="addToCart('${p.id}')">Agregar al carrito</button>
+          <button class="btn-primary" ${Number(p.stock) > 0 ? "" : "disabled"} onclick="addToCart(${inlineArgument(p.id)})">${Number(p.stock) > 0 ? "Agregar al carrito" : "Sin stock"}</button>
         </div>
       </div>`;
   }).join("");
@@ -252,35 +341,43 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+function inlineArgument(value) { return escapeHtml(JSON.stringify(String(value))); }
+function safeImageUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const url = new URL(value, "https://pp3-frontend-alternativo.vercel.app/");
+    return ["https:", "http:"].includes(url.protocol) ? escapeHtml(value) : "";
+  } catch { return ""; }
+}
+
 function renderProducts(list) {
   const grid = $("#products-grid");
   if (!list.length) {
     grid.innerHTML = `<p class="empty-msg">No se encontraron productos.</p>`;
     return;
   }
-  
+
   grid.innerHTML = list.map((p) => {
-    const sinStock = p.stock <= 0;
+    const sinStock = !Number.isFinite(Number(p.stock)) || p.stock <= 0;
     const stockClass = sinStock ? "out" : p.stock <= 5 ? "low" : "";
     const stockText = sinStock ? "Sin stock" : `Stock: ${p.stock}${p.stock <= 5 ? " ⚠️" : ""}`;
     const usd = p.precioUSD ? `<span class="price-usd">≈ USD ${Number(p.precioUSD).toFixed(2)}</span>` : "";
 
-    const imgSrc = p.image || p.imagen || p.foto;
-    const imgHtml = imgSrc 
-      ? `<img src="${imgSrc}" alt="${p.nombre}" style="width: 100%; height: 100%; object-fit: contain;">` 
+    const imgSrc = safeImageUrl(p.image || p.imagen || p.foto || p.imagen_url || p.imagenUrl);
+    const imgHtml = imgSrc
+      ? `<img src="${imgSrc}" alt="${escapeHtml(p.nombre)}" style="width: 100%; height: 100%; object-fit: contain;">`
       : "📦";
 
     return `
     <div class="product-card">
       <div class="product-img">${imgHtml}</div>
       <div class="product-body">
-        <h4>${p.nombre}</h4>
-        <p class="desc">${p.descripcion || ""}</p>
+        <h4>${escapeHtml(p.nombre)}</h4>
+        <p class="desc">${escapeHtml(p.descripcion || "")}</p>
         <span class="price">$${p.precio.toFixed(2)}</span>
         ${usd}
-        <span class="stock ${stockClass}">${stockText}</span>
-        <!-- IMPORTANTE: Pasamos el ID entre comillas simples para que no falle si es un string (UUID) -->
-        <button class="btn-primary" ${sinStock ? "disabled" : ""} onclick="addToCart('${p.id}')">
+        <span class="stock ${stockClass}">${escapeHtml(stockText)}</span>
+        <button class="btn-primary" ${sinStock ? "disabled" : ""} onclick="addToCart(${inlineArgument(p.id)})">
           ${sinStock ? "Sin stock" : "Agregar al carrito"}
         </button>
       </div>
@@ -291,21 +388,111 @@ function renderProducts(list) {
 let searchTimeout;
 $("#search-input").addEventListener("input", () => {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => { loadProducts(); }, 400); 
+  searchTimeout = setTimeout(() => { loadProducts(); }, 400);
 });
 $("#category-select").addEventListener("change", () => { loadProducts(); });
+$("#catalog-prev").addEventListener("click", () => loadProducts(state.page - 1));
+$("#catalog-next").addEventListener("click", () => loadProducts(state.page + 1));
 
 /* ---------- CARRITO ---------- */
-function addToCart(id) {
-  const prod = state.products.find((p) => String(p.id) === String(id)) || state.destacados.find((p) => String(p.id) === String(id));
-  if (!prod) return toast("Error: Producto no encontrado", "error");
+async function hydrateCart(response) {
+  if (!Array.isArray(response.carrito)) throw new Error("Respuesta de carrito inválida");
+  return Promise.all(response.carrito.map(async (item) => {
+    const id = String(item.productId);
+    const qty = Number(item.quantity);
+    if (!/^\d+$/.test(id) || !Number.isSafeInteger(qty) || qty <= 0) throw new Error("Artículo de carrito inválido");
+    try {
+      const p = await api(`/api/productos/${encodeURIComponent(id)}`);
+      const precio = Number(p.precio ?? p.price);
+      const stock = Number(p.stock);
+      if (!Number.isFinite(precio) || precio < 0 || !Number.isSafeInteger(stock) || stock < 0) throw new Error("Producto inválido");
+      return { ...p, id, nombre: p.nombre ?? p.name, precio, stock, qty };
+    } catch (err) {
+      if (err.status !== 404) throw err;
+      return { id, qty, nombre: `Producto ${id} no disponible`, precio: 0, stock: 0, unavailable: true };
+    }
+  }));
+}
 
-  const existing = state.cart.find((i) => String(i.id) === String(prod.id));
-  if (existing) existing.qty++;
-  else state.cart.push({ ...prod, qty: 1 });
-  
-  updateCartCount();
-  toast(`${prod.nombre} agregado 🛒`);
+async function loadCart() {
+  if (state.cartBusy || state.checkoutBusy) return false;
+  if (!state.token || !state.user) { renderCart(); return false; }
+  const token = state.token;
+  state.cartBusy = true;
+  try {
+    const response = await api("/api/usuarios/me/carrito");
+    if (state.token !== token) return false;
+    const cart = await hydrateCart(response);
+    if (state.token !== token) return false;
+    state.cart = cart;
+    state.cartReady = true;
+    return true;
+  } catch (err) {
+    if (state.token === token) {
+      state.cartReady = false;
+      toast("No se pudo recuperar el carrito. Reintentá desde Carrito.", "error");
+    }
+    return false;
+  } finally {
+    if (state.token === token) state.cartBusy = false;
+    updateCartCount();
+    renderCart();
+  }
+}
+
+async function saveCart(cart) {
+  const token = state.token;
+  try {
+    const response = await api("/api/usuarios/me/carrito", {
+      method: "PUT",
+      body: JSON.stringify({ carrito: cart.map(i => ({ productId: String(i.id), quantity: i.qty })) }),
+    });
+    if (state.token !== token) return false;
+    const saved = await hydrateCart(response);
+    if (state.token !== token) return false;
+    state.cart = saved;
+    state.cartReady = true;
+    return true;
+  } catch (err) {
+    if (state.token === token) state.cartReady = false;
+    throw err;
+  }
+}
+
+async function mutateCart(change) {
+  if (state.checkoutAttempt || state.checkoutBusy) return toast("Consultá el pedido pendiente antes de modificar el carrito", "info");
+  if (state.cartBusy) return;
+  if (!state.token || !state.user) {
+    toast("Iniciá sesión para guardar tu carrito", "info");
+    $("#modal-login").classList.remove("hidden");
+    return;
+  }
+  if (!state.cartReady && !(await loadCart())) return;
+  if (state.cartBusy || state.checkoutAttempt) return;
+  const token = state.token;
+  state.cartBusy = true;
+  try {
+    const draft = state.cart.map(i => ({ ...i }));
+    if (change(draft) === false) return;
+    if (await saveCart(draft)) toast("Carrito guardado");
+  } catch (err) {
+    toast("No se pudo confirmar el guardado. Recuperá el carrito antes de continuar.", "error");
+  } finally {
+    if (state.token === token) state.cartBusy = false;
+    updateCartCount();
+    renderCart();
+  }
+}
+
+async function addToCart(id) {
+  return mutateCart((draft) => {
+    const prod = state.products.find(p => String(p.id) === String(id)) || state.destacados.find(p => String(p.id) === String(id));
+    if (!prod) { toast("Producto no encontrado", "error"); return false; }
+    const existing = draft.find(i => String(i.id) === String(id));
+    if (!Number.isSafeInteger(Number(prod.stock)) || Number(prod.stock) <= (existing?.qty || 0)) { toast("No hay más stock disponible", "error"); return false; }
+    if (existing) existing.qty++;
+    else draft.push({ ...prod, qty: 1 });
+  });
 }
 window.addToCart = addToCart;
 
@@ -314,21 +501,24 @@ function updateCartCount() {
   $("#cart-count").textContent = total;
 }
 
-function changeQty(id, delta) {
-  const item = state.cart.find((i) => String(i.id) === String(id));
-  if (!item) return;
-  item.qty += delta;
-  if (item.qty <= 0) state.cart = state.cart.filter((i) => String(i.id) !== String(id));
-  updateCartCount();
-  renderCart();
+async function changeQty(id, delta) {
+  return mutateCart(draft => {
+    const index = draft.findIndex(i => String(i.id) === String(id));
+    if (index < 0) return false;
+    const item = draft[index];
+    if (delta > 0 && item.qty + delta > item.stock) { toast("No hay más stock disponible", "error"); return false; }
+    item.qty += delta;
+    if (item.qty <= 0) draft.splice(index, 1);
+  });
 }
 window.changeQty = changeQty;
 
-function removeItem(id) {
-  state.cart = state.cart.filter((i) => String(i.id) !== String(id));
-  updateCartCount();
-  renderCart();
-  toast("Producto eliminado", "info");
+async function removeItem(id) {
+  return mutateCart(draft => {
+    const index = draft.findIndex(i => String(i.id) === String(id));
+    if (index < 0) return false;
+    draft.splice(index, 1);
+  });
 }
 window.removeItem = removeItem;
 
@@ -339,6 +529,11 @@ function cartTotal() {
 function renderCart() {
   const cont = $("#cart-items");
   const footer = $("#cart-footer");
+  if (!state.user || !state.cartReady) {
+    cont.innerHTML = `<p class="empty-msg">${!state.user ? "Iniciá sesión para recuperar tu carrito." : "Carrito sin verificar. Usá Recuperar carrito para reintentar."}</p>`;
+    footer.classList.add("hidden");
+    return;
+  }
 
   if (!state.cart.length) {
     cont.innerHTML = `<p class="empty-msg">Tu carrito está vacío</p>`;
@@ -350,8 +545,8 @@ function renderCart() {
     <div class="cart-item">
       <div class="thumb">${emojiFor(i)}</div>
       <div class="info">
-        <strong>${i.nombre}</strong>
-        <small>$${i.precio.toFixed(2)} c/u</small>
+        <strong>${escapeHtml(i.nombre)}</strong>
+        <small>${i.unavailable ? "No disponible" : `$${i.precio.toFixed(2)} c/u · Stock: ${i.stock}`}</small>
       </div>
       <div class="controls">
         <button class="qty-btn" onclick="changeQty('${i.id}', -1)">−</button>
@@ -368,49 +563,102 @@ function renderCart() {
 }
 
 $("#btn-cart").addEventListener("click", () => showView("carrito"));
+$("#cart-reload").addEventListener("click", loadCart);
 
 /* ---------- CHECKOUT ---------- */
+function setCheckoutAttempt(value) {
+  state.checkoutAttempt = value;
+  const key = `techstore_attempt_${state.user.id}`;
+  if (value) localStorage.setItem(key, value);
+  else localStorage.removeItem(key);
+}
+
 function updateCheckoutTotal() {
   $("#checkout-total").textContent = cartTotal().toFixed(2);
+  if (!$("#direccion").value) $("#direccion").value = state.user?.direccion || "";
+  $("#direccion").disabled = !!state.checkoutAttempt;
+  $("#coupon-code").disabled = !!state.checkoutAttempt;
+  $("#direccion").required = !state.checkoutAttempt;
 }
 
 $("#checkout-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  
-  // CORREGIDO: Antes decía || state.user (sin !)
+
+  if (state.checkoutBusy || state.cartBusy) return;
+  if (state.token && !state.user) await restoreSession();
+  if (state.checkoutBusy || state.cartBusy) return;
   if (!state.token || !state.user) {
     toast("Iniciá sesión para comprar", "error");
     $("#modal-login").classList.remove("hidden");
     return;
   }
-  if (!state.cart.length) return toast("Tu carrito está vacío", "error");
+  if (!state.cart.length && !state.checkoutAttempt) return toast("Tu carrito está vacío", "error");
+  if (!state.checkoutAttempt && !state.cartReady && !(await loadCart())) return;
+  if (state.checkoutBusy || state.cartBusy || !state.user) return;
+  if (!state.checkoutAttempt && (!state.cart.length || state.cart.some(i => i.unavailable || i.qty > i.stock))) return toast("Revisá los productos y el stock del carrito", "error");
+  const direccionEntrega = $("#direccion").value.trim();
+  if (!state.checkoutAttempt && (!direccionEntrega || [...direccionEntrega].length > 500)) return toast("Ingresá una dirección de hasta 500 caracteres", "error");
 
-  const direccion = $("#direccion").value.trim();
-  if (!direccion) return toast("Ingresá una dirección", "error");
-
-  // Enviamos el ID tal cual viene (como string para UUIDs de PostgreSQL)
   const body = {
-    items: state.cart.map((i) => ({ productoId: i.id, cantidad: i.qty })),
-    direccionEntrega: direccion,
+    items: state.cart.map((i) => ({ productId: i.id, quantity: i.qty })),
+    direccionEntrega,
+    couponCode: $("#coupon-code").value.trim().toUpperCase() || null,
   };
 
+  state.checkoutBusy = true;
+  const checkoutToken = state.token;
+  const button = $("#checkout-form button[type=submit]");
+  button.disabled = true;
+  let submitted = false;
+  let confirmed = false;
   try {
-    const pedido = await api("/api/pedidos", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    state.cart = [];
-    updateCartCount();
-    toast(`¡Pedido #${pedido.id || 'creado'} confirmado! 🎉`);
-    showView("pedidos");
+    let pedido;
+    if (state.checkoutAttempt) {
+      // Never create a second order after an ambiguous result.
+      pedido = await api(`/api/pedidos/operaciones/${encodeURIComponent(state.checkoutAttempt)}`);
+    } else {
+      setCheckoutAttempt(crypto.randomUUID());
+      submitted = true;
+      pedido = await api("/api/pedidos", {
+        method: "POST",
+        headers: { "Idempotency-Key": state.checkoutAttempt },
+        body: JSON.stringify(body),
+      });
+    }
+    if (state.token !== checkoutToken) return;
+    pedido = pedido.pedido || pedido;
+    if (["confirmed", "paid", "shipped", "delivered"].includes(pedido.estado)) {
+      confirmed = true;
+      // Keep the confirmed attempt until the API has acknowledged cart cleanup.
+      // Retrying after a failed cleanup queries this order instead of creating another.
+      if (!(await saveCart([]))) return;
+      setCheckoutAttempt(null);
+      updateCartCount();
+      toast(`Pedido #${pedido.id} confirmado`);
+      showView("pedidos");
+    } else if (["rejected", "cancelled"].includes(pedido.estado)) {
+      setCheckoutAttempt(null);
+      toast("El pedido no fue confirmado. Revisá tu carrito.", "error");
+    } else {
+      toast("Pedido pendiente. Volvé a confirmar para consultar su estado.", "info");
+    }
   } catch (err) {
-    toast(err.message, "error");
+    if (state.token !== checkoutToken) return;
+    if (submitted && !confirmed && !err.data?.uncertain && [400, 409, 422].includes(err.status)) setCheckoutAttempt(null);
+    toast(err.message + (state.checkoutAttempt ? " Volvé a confirmar para consultar el intento, sin duplicarlo." : ""), "error");
+  } finally {
+    if (state.token === checkoutToken) state.checkoutBusy = false;
+    button.disabled = false;
+    updateCheckoutTotal();
   }
 });
 
 /* ---------- PEDIDOS ---------- */
+let ordersRequest = 0;
 async function loadOrders() {
+  const request = ++ordersRequest;
   const cont = $("#orders-list");
+  const token = state.token;
   if (!state.token) {
     cont.innerHTML = `<p class="empty-msg">Iniciá sesión para ver tus pedidos.</p>`;
     return;
@@ -419,10 +667,13 @@ async function loadOrders() {
 
   try {
     const pedidos = await api("/api/pedidos");
-    state.orders = Array.isArray(pedidos) ? pedidos : [];
+    if (state.token !== token || request !== ordersRequest) return;
+    if (!Array.isArray(pedidos)) throw new Error("Respuesta de pedidos inválida");
+    state.orders = pedidos;
     renderOrders(state.orders);
   } catch (err) {
-    cont.innerHTML = `<p class="empty-msg">No se pudieron cargar los pedidos: ${err.message}</p>`;
+    if (state.token !== token || request !== ordersRequest) return;
+    cont.innerHTML = `<p class="empty-msg">No se pudieron cargar los pedidos: ${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -433,120 +684,190 @@ function renderOrders(list) {
     return;
   }
   cont.innerHTML = list.map((o) => {
-    const cancelado = (o.estado || "").toLowerCase() === "cancelado";
+    // The orders contract uses numeric IDs, including in selector attributes.
+    if (!/^\d+$/.test(String(o.id))) return "";
+    const cancelado = ["cancelado", "cancelled"].includes((o.estado || "").toLowerCase());
     const estado = (o.estado || "pendiente").toUpperCase();
-    const fecha = o.created_at ? new Date(o.created_at).toLocaleString("es-AR") : "—";
-    const items = Array.isArray(o.items) ? o.items : [];
+    const fecha = (o.fecha || o.created_at) ? new Date(o.fecha || o.created_at).toLocaleString("es-AR") : "—";
+    const items = Array.isArray(o.detalles) ? o.detalles : (Array.isArray(o.items) ? o.items : []);
     const itemsHtml = items.length
       ? `<ul class="items-list">${items.map((it) =>
-          `<li>• ${it.nombre_producto || it.nombreProducto || "Producto"} × ${it.cantidad} — $${Number(it.precio_unitario ?? it.precioUnitario ?? 0).toFixed(2)}</li>`
+          `<li>• ${escapeHtml(it.nombre_producto || it.nombreProducto || "Producto")} × ${escapeHtml(it.cantidad)} — $${Number(it.precio_unitario ?? it.precioUnitario ?? 0).toFixed(2)}</li>`
         ).join("")}</ul>`
       : "";
     return `
     <div class="order-card ${cancelado ? "cancelado" : ""}">
       <div class="order-head">
         <span>Pedido #${o.id}</span>
-        <span class="status ${cancelado ? "cancelado" : ""}">${estado}</span>
+        <span class="status ${cancelado ? "cancelado" : ""}">${escapeHtml(estado)}</span>
       </div>
       <div class="order-meta">
         <span>Total: <strong>$${Number(o.total).toFixed(2)}</strong></span>
-        <span>Dirección: ${o.direccion_entrega || "—"}</span>
+        <span>Dirección: ${escapeHtml(o.direccionEntrega ?? o.direccion_entrega ?? "Sin dirección registrada")}</span>
+        <span>Cupón: ${escapeHtml(o.couponCode ?? o.cuponCodigo ?? "Sin cupón")}</span>
+        <span>Descuento: $${Number(o.descuento || 0).toFixed(2)}</span>
         <span>${fecha}</span>
       </div>
       ${itemsHtml}
-      ${!cancelado ? `<button class="btn-cancelar" onclick="cancelOrder('${o.id}')">Cancelar pedido</button>` : ""}
+      <button class="btn-secondary" onclick="loadOrderDetail('${o.id}')">Ver detalle</button>
+      ${o.estado === "confirmed" ? `<div class="order-payment">
+        <p>Pago simulado para la demo. No ingreses datos bancarios.</p>
+        <label>Método <select id="payment-method-${o.id}"><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option></select></label>
+        <label>Resultado <select id="payment-result-${o.id}"><option value="aprobado">Aprobado</option><option value="rechazado">Rechazado</option></select></label>
+        <button class="btn-primary" id="payment-button-${o.id}" onclick="payOrder('${o.id}')">Pagar pedido</button>
+      </div>` : ""}
+      ${["paid", "shipped", "delivered"].includes(o.estado) ? `<button class="btn-secondary" onclick="loadOrderReceipt('${o.id}')">Ver comprobante</button>` : ""}
+      ${o.estado === "confirmed" ? `<button class="btn-cancelar" onclick="cancelOrder('${o.id}')">Cancelar pedido</button>` : ""}
     </div>`;
   }).join("");
 }
 
-async function cancelOrder(id) {
-  if (!confirm("¿Cancelar este pedido? El stock se restaura.")) return;
+async function loadOrderDetail(id) {
+  if (!state.token) return;
+  const request = ++ordersRequest;
+  const token = state.token;
   try {
-    await api(`/api/pedidos/${id}/cancelar`, { method: "PUT" });
-    toast("Pedido cancelado", "info");
-    loadOrders();
+    const order = await api(`/api/pedidos/${encodeURIComponent(id)}`);
+    if (state.token !== token || request !== ordersRequest) return;
+    renderOrders([order]);
   } catch (err) {
+    if (state.token === token && request === ordersRequest) toast(err.message, "error");
+  }
+}
+window.loadOrderDetail = loadOrderDetail;
+
+async function payOrder(id) {
+  if (!state.token || state.paymentBusy || state.cancellationBusy || !/^\d+$/.test(String(id))) return;
+  const token = state.token;
+  const button = $(`#payment-button-${id}`);
+  const body = {
+    metodo: $(`#payment-method-${id}`).value,
+    resultadoSimulado: $(`#payment-result-${id}`).value,
+  };
+  if (!confirm("¿Confirmar este pago simulado?")) return;
+  state.paymentBusy = true;
+  button.disabled = true;
+  try {
+    const result = await api(`/api/pedidos/${encodeURIComponent(id)}/pagar`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+    if (state.token !== token) return;
+    const approved = result.estadoPedido === "Pagado" && !!result.comprobante;
+    toast(result.mensaje || (approved ? "Pago aprobado" : "Pago no aprobado"), approved ? "success" : "error");
+    await loadOrders();
+  } catch (err) {
+    if (state.token !== token) return;
+    toast(`${err.message} Consultá el estado del pedido antes de volver a pagar.`, "error");
+    await loadOrders();
+  } finally {
+    if (state.token === token) state.paymentBusy = false;
+    button.disabled = false;
+  }
+}
+window.payOrder = payOrder;
+
+let receiptRequest = 0;
+async function loadOrderReceipt(id) {
+  if (!state.token) return;
+  const token = state.token;
+  const request = ++receiptRequest;
+  $("#modal-receipt").classList.add("hidden");
+  $("#receipt-content").textContent = "";
+  try {
+    const receipt = await api(`/api/pedidos/${encodeURIComponent(id)}/comprobante`);
+    if (state.token !== token || request !== receiptRequest) return;
+    if (!receipt?.numero || receipt.total == null || !Number.isFinite(Number(receipt.total))) throw new Error("Respuesta de comprobante inválida");
+    const products = Array.isArray(receipt.productos) ? receipt.productos : [];
+    $("#receipt-content").textContent = [
+      `Comprobante ${receipt.numero}`, `Pedido #${receipt.pedidoId}`,
+      receipt.tipoFactura || "Comprobante no fiscal",
+      `Fecha: ${receipt.fecha || "—"}`,
+      `Cliente: ${receipt.cliente || "—"}`,
+      `Método: ${receipt.metodoPago || "—"} — ${receipt.estadoPago || "—"}`,
+      ...products.map(item => `${item.nombreProducto} × ${item.cantidad} — $${Number(item.subtotal).toFixed(2)}`),
+      `Subtotal: $${Number(receipt.subtotal || 0).toFixed(2)}`,
+      `Descuento: $${Number(receipt.descuento || 0).toFixed(2)}`,
+      `Cupón: ${receipt.cupon || "Sin cupón"}`,
+      `Total: $${Number(receipt.total).toFixed(2)}`,
+    ].join("\n");
+    $("#modal-receipt").classList.remove("hidden");
+  } catch (err) {
+    if (state.token === token && request === receiptRequest) toast(err.message, "error");
+  }
+}
+window.loadOrderReceipt = loadOrderReceipt;
+
+async function cancelOrder(id) {
+  if (!state.token || state.paymentBusy || state.cancellationBusy) return;
+  if (!confirm("¿Solicitar la cancelación de este pedido?")) return;
+  const token = state.token;
+  state.cancellationBusy = true;
+  try {
+    const result = await api(`/api/pedidos/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ estado: "cancelled" }),
+    });
+    if (state.token !== token) return;
+    const order = result.pedido || result;
+    toast(order.estado === "cancelled" ? "Pedido cancelado" : "Cancelación solicitada. Consultá el estado del pedido.", "info");
+    await loadOrders();
+  } catch (err) {
+    if (state.token !== token) return;
     toast(err.message, "error");
+    await loadOrders();
+  } finally {
+    if (state.token === token) state.cancellationBusy = false;
   }
 }
 window.cancelOrder = cancelOrder;
 
 /* ---------- PERFIL ---------- */
-async function loadProfile() {
-  const container = $("#cliente-form-container");
-
-  if (state.user) {
-    $("#profile-nombre").textContent = state.user.nombre || "Usuario";
-    $("#profile-email").textContent = state.user.email || "—";
-    $("#profile-rol").textContent = state.user.rol || "—";
-  } else {
-    $("#profile-nombre").textContent = "Invitado";
-    $("#profile-email").textContent = "Sin sesión iniciada";
-    $("#profile-rol").textContent = "—";
-    $("#profile-dni").textContent = "—";
-    $("#profile-telefono").textContent = "—";
-    $("#profile-direcciones").innerHTML = "<li>—</li>";
-    container.classList.add("hidden");
-    return;
-  }
-
-  if (!state.token) return;
-
-  try {
-    const cliente = await api("/api/clientes/perfil");
-    state.perfilCliente = cliente || {};
-    
-    $("#profile-dni").textContent = cliente.dni || "—";
-    $("#profile-telefono").textContent = cliente.telefono || "—";
-    
-    const dirs = Array.isArray(cliente.direcciones) ? cliente.direcciones : [];
-    $("#profile-direcciones").innerHTML = dirs.length
-      ? dirs.map((d) => `<li>${d.calle || ""} ${d.numero || ""} — ${d.ciudad || ""} ${d.esPredeterminada ? "⭐" : ""}</li>`).join("")
-      : "<li>Sin direcciones cargadas</li>";
-      
-    container.classList.add("hidden");
-  } catch (err) {
-    state.perfilCliente = null;
-    $("#profile-dni").textContent = "—";
-    $("#profile-telefono").textContent = "—";
-    $("#profile-direcciones").innerHTML = "<li>Completá el formulario para crear tu perfil</li>";
-    container.classList.remove("hidden"); 
+function renderProfile() {
+  const user = state.user;
+  $("#profile-nombre").textContent = user?.name || "Invitado";
+  $("#profile-email").textContent = user?.email || (state.token ? "Sesión pendiente de verificar" : "Sin sesión iniciada");
+  $("#profile-rol").textContent = user?.role || "—";
+  $("#profile-dni").textContent = user?.dni || "—";
+  $("#profile-telefono").textContent = user?.telefono || "—";
+  $("#profile-direcciones").innerHTML = `<li>${escapeHtml(user?.direccion || "Sin dirección cargada")}</li>`;
+  $("#cliente-form-container").classList.toggle("hidden", !user);
+  for (const [id, field] of Object.entries({ nombre: "name", apellido: "apellido", dni: "dni", telefono: "telefono", direccion: "direccion" })) {
+    $(`#cl-${id}`).value = user?.[field] || "";
   }
 }
 
-/* ---------- CREAR PERFIL DE CLIENTE (Usa la ruta real /api/clientes) ---------- */
+async function loadProfile() {
+  if (state.token) await restoreSession();
+  renderProfile();
+}
+
+let profileSaveBusy = false;
 $("#cliente-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  
+  if (profileSaveBusy) return;
+  if (!state.token || !state.user) return toast("Iniciá sesión para editar tu perfil", "error");
   const body = {
-    nombre: $("#cl-nombre").value.trim(),
+    name: $("#cl-nombre").value.trim(),
     apellido: $("#cl-apellido").value.trim(),
-    dni: $("#cl-dni").value.trim(),
-    email: state.user?.email || "sin-email@test.com",
-    telefono: $("#cl-telefono").value.trim() || undefined,
-    direccion: $("#cl-direccion").value.trim(),
+    dni: $("#cl-dni").value.trim() || null,
+    telefono: $("#cl-telefono").value.trim() || null,
+    direccion: $("#cl-direccion").value.trim() || null,
   };
-
+  const token = state.token;
+  const button = $("#cliente-form button[type=submit]");
+  profileSaveBusy = true;
+  button.disabled = true;
   try {
-    // Usamos el endpoint original del ms-clientes que sabemos que funciona
-    await api("/api/clientes", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    toast("Perfil creado con éxito ✅");
-    loadProfile();
+    const response = await api("/api/usuarios/me", { method: "PUT", body: JSON.stringify(body) });
+    if (state.token !== token) return;
+    state.user = normalizeUser(response.user);
+    renderProfile();
+    toast("Perfil actualizado");
   } catch (err) {
-    // Si el cliente ya existe, intentamos actualizarlo
-    try {
-      await api("/api/clientes/perfil", {
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
-      toast("Perfil actualizado ✅");
-      loadProfile();
-    } catch (err2) {
-      toast(err2.message || err.message, "error");
-    }
+    if (state.token === token) toast(err.message, "error");
+  } finally {
+    profileSaveBusy = false;
+    button.disabled = false;
   }
 });
 
@@ -559,20 +880,9 @@ async function init() {
   const footerYear = document.getElementById("footer-year");
   if (footerYear) footerYear.textContent = new Date().getFullYear();
 
-  if (state.token) {
-    try {
-      const usuario = await api("/api/usuarios/me"); 
-      state.user = usuario;
-      updateAuthUI();
-    } catch (err) {
-      state.token = null;
-      state.user = null;
-      localStorage.removeItem(TOKEN_KEY);
-      updateAuthUI();
-    }
-  } else {
-    updateAuthUI();
-  }
+  updateAuthUI();
+  await restoreSession();
+  renderProfile();
 }
 
 init();
